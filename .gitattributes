@@ -1,0 +1,20 @@
+# 줄바꿈은 저장소에서 LF로 통일한다 (Windows·macOS 혼용 개발). backend/.gitattributes 와 같은 규칙이다.
+* text=auto eol=lf
+
+# Windows 전용 스크립트는 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.heic binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary

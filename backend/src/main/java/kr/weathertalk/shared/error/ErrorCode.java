@@ -21,6 +21,9 @@ public enum ErrorCode {
 
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST),
 
+	/** 같은 요청 식별자의 첫 요청이 아직 처리 중이다. 앱은 잠시 후 같은 식별자로 다시 보낸다. */
+	REQUEST_IN_PROGRESS(HttpStatus.CONFLICT),
+
 	NOT_FOUND(HttpStatus.NOT_FOUND);
 
 	private final HttpStatus status;
