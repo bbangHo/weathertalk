@@ -1,48 +1,82 @@
 package kr.weathertalk.home.internal;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.stereotype.Service;
 
+import kr.weathertalk.feeling.FeelingApi;
+import kr.weathertalk.feeling.SensitivityFeeling;
+import kr.weathertalk.feeling.SensitivityFeelings;
+import kr.weathertalk.feeling.YesterdayComparison;
+import kr.weathertalk.home.DepartureOutfit;
+import kr.weathertalk.home.FeedbackStatus;
 import kr.weathertalk.home.HomeApi;
 import kr.weathertalk.home.HomeSection;
 import kr.weathertalk.home.HomeView;
+import kr.weathertalk.home.PersonalBasis;
 import kr.weathertalk.home.ViewingNeighborhood;
+import kr.weathertalk.member.MemberApi;
+import kr.weathertalk.member.MemberProfile;
 import kr.weathertalk.member.Requester;
+import kr.weathertalk.member.TemperatureSensitivity;
 import kr.weathertalk.neighborhood.CurrentNeighborhood;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
+import kr.weathertalk.outfit.DepartureCondition;
+import kr.weathertalk.outfit.OutfitApi;
+import kr.weathertalk.outfit.OutfitRecommendation;
+import kr.weathertalk.outfit.Precipitation;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
+import kr.weathertalk.shared.time.TimeConfig;
 import kr.weathertalk.weather.CurrentObservation;
 import kr.weathertalk.weather.DailyForecast;
 import kr.weathertalk.weather.HourlyForecast;
+import kr.weathertalk.weather.PrecipitationType;
 import kr.weathertalk.weather.WeatherApi;
 
 /**
- * 홈 조합 1차 (07 §1): 보는 동네 + 현재 날씨·시간별 예보·중기 예보 섹션. 규칙 없음 원칙(07 §1.5) — 호출·조합·섹션 상태·시간 제한만 한다.
- * 신선도·낮밤·등급은 weather 값을 그대로 전달한다.
+ * 홈 조합 (07 §1): 보는 동네 + 날씨 섹션 + 민감도별 체감 3그룹·피드백 버튼 상태·옷 추천·어제와 비교·외출 시각 기준.
+ * 규칙 없음 원칙(07 §1.5) — 호출·조합·섹션 상태·요청자에 따른 섹션 선택·시간 제한만 한다. 산출 출처·비교 가능 여부·옷차림은 소유 모듈 값 그대로다.
+ * 옷 추천·어제 비교·외출 시각 기준은 민감도별 체감이 실패하면 조회하지 않는다(07 §1.4-3).
  */
 @Service
 class HomeComposer implements HomeApi {
 
 	private final NeighborhoodApi neighborhoodApi;
 	private final WeatherApi weatherApi;
+	private final MemberApi memberApi;
+	private final FeelingApi feelingApi;
+	private final OutfitApi outfitApi;
 	private final SectionRunner sections;
+	private final Clock clock;
 
-	HomeComposer(NeighborhoodApi neighborhoodApi, WeatherApi weatherApi, SectionRunner sections) {
+	HomeComposer(NeighborhoodApi neighborhoodApi, WeatherApi weatherApi, MemberApi memberApi, FeelingApi feelingApi,
+			OutfitApi outfitApi, SectionRunner sections, Clock clock) {
 		this.neighborhoodApi = neighborhoodApi;
 		this.weatherApi = weatherApi;
+		this.memberApi = memberApi;
+		this.feelingApi = feelingApi;
+		this.outfitApi = outfitApi;
 		this.sections = sections;
+		this.clock = clock;
 	}
 
 	@Override
-	public HomeView compose(Requester requester, NeighborhoodId neighborhoodId) {
-		Optional<CurrentNeighborhood> current = requester instanceof Requester.Member member
-				? neighborhoodApi.findCurrentNeighborhood(member.memberId())
+	public HomeView compose(Requester requester, NeighborhoodId neighborhoodId,
+			TemperatureSensitivity deviceSensitivity, List<LocalTime> departureTimes) {
+		Requester.Member member = requester instanceof Requester.Member m ? m : null;
+		Optional<CurrentNeighborhood> current = member != null ? neighborhoodApi.findCurrentNeighborhood(member.memberId())
 				: Optional.empty();
 		NeighborhoodId viewingId = neighborhoodId != null ? neighborhoodId
 				: current.map(c -> c.neighborhood().id())
@@ -50,6 +84,9 @@ class HomeComposer implements HomeApi {
 		Neighborhood neighborhood = neighborhoodApi.findNeighborhood(viewingId)
 			.orElseThrow(() -> unresolved("NOT_FOUND", "없는 동네입니다."));
 		NeighborhoodId id = neighborhood.id();
+		boolean isCurrent = current.map(c -> c.neighborhood().id().equals(id)).orElse(false);
+		PersonalBasis personal = personal(member, deviceSensitivity);
+		TemperatureSensitivity basis = personal.basisGroup();
 
 		CompletableFuture<HomeSection<CurrentObservation>> currentWeather = sections.start("current-weather",
 				() -> weatherApi.findCurrentObservation(id), CurrentObservation::isEmpty);
@@ -58,10 +95,102 @@ class HomeComposer implements HomeApi {
 		CompletableFuture<HomeSection<DailyForecast>> daily = sections.start("daily-forecast",
 				() -> weatherApi.findDailyForecast(id), DailyForecast::isEmpty);
 
-		boolean isCurrent = current.map(c -> c.neighborhood().id().equals(id)).orElse(false);
+		CompletableFuture<HomeSection<SensitivityFeelings>> feelings = sections.start("sensitivity-feelings",
+				() -> feelingApi.findSensitivityFeelings(id, null), f -> f.groups().isEmpty());
+		CompletableFuture<HomeSection<FeedbackStatus>> feedback = member == null ? null
+				: sections.start("feedback-status",
+						() -> new FeedbackStatus(isCurrent,
+								isCurrent ? feelingApi.findRecentRecord(member.memberId(), id).orElse(null) : null),
+						status -> false);
+		CompletableFuture<HomeSection<OutfitRecommendation>> outfit = sections.after("outfit", feelings,
+				f -> f.find(basis)
+					.map(feeling -> outfitApi.recommend(feeling.temperatureTag().level(),
+							precipitation(SectionRunner.join(currentWeather).data())))
+					.orElse(null),
+				o -> false);
+		CompletableFuture<HomeSection<YesterdayComparison>> yesterday = sections.after("yesterday-comparison",
+				feelings, f -> feelingApi.compareWithYesterday(id, basis, null), c -> !c.comparable());
+		CompletableFuture<HomeSection<DepartureOutfit>> departure = departureTimes == null || departureTimes.isEmpty()
+				? null
+				: sections.after("departure-outfit", feelings,
+						f -> departure(id, basis, departureTimes, SectionRunner.join(hourly).data()),
+						d -> d.recommendation() == null);
+
 		return new HomeView(new ViewingNeighborhood(id.value(), neighborhood.sidoName(), neighborhood.sigunguName(),
 				neighborhood.eupmyeondongName(), neighborhood.fullName(), neighborhood.shortName(), isCurrent),
-				SectionRunner.join(currentWeather), SectionRunner.join(hourly), SectionRunner.join(daily));
+				SectionRunner.join(currentWeather), SectionRunner.join(hourly), SectionRunner.join(daily), personal,
+				SectionRunner.join(feelings), feedback == null ? null : SectionRunner.join(feedback),
+				SectionRunner.join(outfit), SectionRunner.join(yesterday),
+				departure == null ? null : SectionRunner.join(departure));
+	}
+
+	/** 내 그룹 선택(07 §1.3): 회원은 회원 민감도, 비회원은 기기 민감도, 없으면 '보통' 기준 + 고르기 안내. */
+	private PersonalBasis personal(Requester.Member member, TemperatureSensitivity deviceSensitivity) {
+		if (member != null) {
+			TemperatureSensitivity mine = memberApi.findProfile(member.memberId())
+				.map(MemberProfile::temperatureSensitivity)
+				.orElse(TemperatureSensitivity.NORMAL);
+			return new PersonalBasis(mine, mine, false);
+		}
+		if (deviceSensitivity != null) {
+			return new PersonalBasis(deviceSensitivity, deviceSensitivity, false);
+		}
+		return new PersonalBasis(null, TemperatureSensitivity.NORMAL, true);
+	}
+
+	/**
+	 * 외출 시각 기준: 각 외출 시각의 다음 도래 시각(이번 시(時)가 지났으면 내일)으로 기준 그룹 체감을 조회해 outfit에 넘긴다.
+	 * 다음 외출 시각 선택은 M7부터 notification `기기의 외출 시각 조회`가 맡는다.
+	 */
+	private DepartureOutfit departure(NeighborhoodId id, TemperatureSensitivity basis, List<LocalTime> times,
+			HourlyForecast hourly) {
+		ZonedDateTime now = clock.instant().atZone(TimeConfig.SEOUL);
+		ZonedDateTime currentHour = now.truncatedTo(ChronoUnit.HOURS);
+		List<DepartureOutfit.Departure> departures = new ArrayList<>();
+		List<DepartureCondition> conditions = new ArrayList<>();
+		times.stream().distinct().sorted().forEach(time -> {
+			ZonedDateTime at = now.toLocalDate().atTime(time).atZone(TimeConfig.SEOUL);
+			if (at.truncatedTo(ChronoUnit.HOURS).isBefore(currentHour)) {
+				at = at.plusDays(1);
+			}
+			Instant departureAt = at.toInstant();
+			Optional<SensitivityFeeling> feeling = feelingApi.findSensitivityFeeling(id, basis, departureAt);
+			feeling.ifPresent(f -> {
+				departures.add(new DepartureOutfit.Departure(departureAt, f));
+				conditions.add(new DepartureCondition(departureAt, f.temperatureTag().level(),
+						precipitationAt(hourly, f.basisTime())));
+			});
+		});
+		return new DepartureOutfit(departures,
+				conditions.isEmpty() ? null : outfitApi.recommendForDepartures(conditions));
+	}
+
+	private static Precipitation precipitationAt(HourlyForecast hourly, Instant basisTime) {
+		if (hourly == null) {
+			return Precipitation.NONE;
+		}
+		return hourly.slots()
+			.stream()
+			.filter(slot -> slot.forecastAt().equals(basisTime))
+			.findFirst()
+			.map(slot -> precipitation(slot.precipitationType()))
+			.orElse(Precipitation.NONE);
+	}
+
+	private static Precipitation precipitation(CurrentObservation observation) {
+		return observation == null ? Precipitation.NONE : precipitation(observation.precipitationType());
+	}
+
+	/** weather 강수 형태를 outfit 입력 형식으로 옮긴다(판단 없음: 비·소나기 → 비, 눈·비/눈 → 눈). */
+	private static Precipitation precipitation(PrecipitationType type) {
+		if (type == null) {
+			return Precipitation.NONE;
+		}
+		return switch (type) {
+			case NONE -> Precipitation.NONE;
+			case RAIN, SHOWER -> Precipitation.RAIN;
+			case SNOW, RAIN_SNOW -> Precipitation.SNOW;
+		};
 	}
 
 	private static DomainException unresolved(String reason, String message) {

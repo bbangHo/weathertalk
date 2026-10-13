@@ -86,11 +86,18 @@ class MemberWithdrawalScenarioTests {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM member_login_account WHERE member_id = ?", Integer.class,
 				session.memberId().value())).isZero();
 
-		// 이벤트 발행 저장소에 영속화되고, 구독 처리가 끝나면 완료로 기록된다.
-		org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(jdbc.queryForObject(
-				"SELECT count(*) FROM event_publication WHERE event_type = ? AND serialized_event LIKE ? "
-						+ "AND completion_date IS NOT NULL",
-				Integer.class, MemberWithdrawn.class.getName(), "%" + session.memberId().value() + "%")).isEqualTo(1));
+		// 이벤트 발행 저장소에 구독자마다(neighborhood, feeling, …) 영속화되고, 구독 처리가 끝나면 모두 완료로 기록된다.
+		org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+			assertThat(jdbc.queryForObject(
+					"SELECT count(*) FROM event_publication WHERE event_type = ? AND serialized_event LIKE ? "
+							+ "AND completion_date IS NOT NULL",
+					Integer.class, MemberWithdrawn.class.getName(), "%" + session.memberId().value() + "%"))
+				.isGreaterThanOrEqualTo(2);
+			assertThat(jdbc.queryForObject(
+					"SELECT count(*) FROM event_publication WHERE event_type = ? AND serialized_event LIKE ? "
+							+ "AND completion_date IS NULL",
+					Integer.class, MemberWithdrawn.class.getName(), "%" + session.memberId().value() + "%")).isZero();
+		});
 
 		// 같은 제공자 계정으로 즉시 새 가입이 가능하고(재가입 유예 없음), 탈퇴 회원의 닉네임은 바로 해제된다.
 		nicknames.enqueue(nickname);

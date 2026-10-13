@@ -51,6 +51,15 @@ public enum ErrorCode {
 	/** 관심 동네 최대 개수를 넘는다(BR-NBR-08). */
 	INTEREST_NEIGHBORHOOD_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// ── feeling ──
+
+	/**
+	 * 체감 피드백 대상이 아니다(BR-FEL-07): 보여준 값이 현재 동네·현재 시각·회원의 현재 온도 민감도로 산출한 값이 아니거나
+	 * feeling.feedback.max-shown-age보다 오래됐다. 앱은 최신 값을 다시 불러온다. 응답의 {@code reason}:
+	 * NEIGHBORHOOD_MISMATCH / SENSITIVITY_MISMATCH / NOT_CURRENT_TIME / STALE.
+	 */
+	FEEDBACK_TARGET_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// ── home ──
 
 	/**

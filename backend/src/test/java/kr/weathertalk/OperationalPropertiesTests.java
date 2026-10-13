@@ -48,6 +48,11 @@ class OperationalPropertiesTests {
 			assertThat(feeling.neighborhoodWindow()).isEqualTo(Duration.ofHours(2));
 			assertThat(feeling.minGroupRecords()).isEqualTo(5);
 			assertThat(feeling.recordInterval()).isEqualTo(Duration.ofHours(1));
+			// BR-FEL-18 고정 기준표, 체감 매핑 기능 플래그(M6 전까지 꺼짐)
+			assertThat(feeling.referenceTable().normal()).containsExactly(32.0, 27.0, 23.0, 17.0, 13.0, 8.0);
+			assertThat(feeling.mapping().enabled()).isFalse();
+			// 옷차림 매핑표 7단계
+			assertThat(context.getBean(OutfitProperties.class).table().levels()).hasSize(7);
 
 			WeatherProperties weather = context.getBean(WeatherProperties.class);
 			assertThat(weather.fieldReport().rainThreshold()).isEqualTo(3);
