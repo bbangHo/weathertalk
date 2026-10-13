@@ -55,11 +55,15 @@ public record WeatherProperties(
 	public record MidTerm(@NotNull @DurationMin(seconds = 0) Duration availabilityDelay) {
 	}
 
+	/**
+	 * @param stationSyncInterval 측정소 목록(getMsrstnList) 정기 동기화 주기. 동네-측정소 대응은 이 목록으로 매번 계산하므로
+	 *        스펙의 station-mapping-ttl(대응 재산정 주기)을 대신한다(03 구현 메모 §13).
+	 */
 	public record Air(
 			@NotNull @DurationMin(seconds = 0) Duration availabilityDelay,
 			@NotNull @DurationMin(minutes = 1) Duration maxStaleness,
 			@NotNull @Min(1) Integer stationFallbackCount,
-			@NotNull @DurationMin(days = 1) Duration stationMappingTtl) {
+			@NotNull @DurationMin(hours = 1) Duration stationSyncInterval) {
 	}
 
 	public record Uv(@NotNull @DurationMin(seconds = 0) Duration availabilityDelay) {

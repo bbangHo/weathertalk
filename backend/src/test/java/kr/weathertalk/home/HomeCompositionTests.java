@@ -56,8 +56,8 @@ class HomeCompositionTests extends WeatherTestBase {
 	private void stubWeather() {
 		stubs.observation(N7_GRID, kst("2026-10-13T09:00"), 18.0);
 		stubs.shortTerm(N7_GRID, kst("2026-10-13T08:00"), 63);
-		stubs.nearbyStations("샘플측정소A");
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" }));
+		stubs.stationsNearN7("샘플측정소A");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" });
 		stubs.uv(UV_AREA, kst("2026-10-13T06:00"), 2, 4);
 	}
 
@@ -102,10 +102,10 @@ class HomeCompositionTests extends WeatherTestBase {
 		stubWeather();
 		// 현재 날씨 섹션만 부르는 실황·측정(두 측정소)·자외선을 느리게: 호출마다 외부 제한시간(0.4초)×재시도 2회를 소진해
 		// 섹션 전체가 약 3.2초 걸린다
-		stubs.nearbyStations("샘플측정소A", "샘플측정소B");
+		stubs.stationsNearN7("샘플측정소A", "샘플측정소B");
 		server.stubFor(WeatherStubs.ncstRequest(N7_GRID, kst("2026-10-13T09:00"))
 			.willReturn(okJson(WeatherStubs.kmaNoData()).withFixedDelay(2000)));
-		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.MEASURE))
+		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.REALTIME))
 			.willReturn(okJson("{}").withFixedDelay(2000)));
 		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.UV))
 			.willReturn(okJson("{}").withFixedDelay(2000)));

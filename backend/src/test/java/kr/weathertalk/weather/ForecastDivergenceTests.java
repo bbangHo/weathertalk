@@ -132,8 +132,8 @@ class ForecastDivergenceTests extends FieldReportTestBase {
 	@Test
 	void airBadgeComparesCombinedDustGrade() {
 		stubSources("0", "1", "0");
-		stubs.nearbyStations("샘플측정소A");
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 09:00", "30", "10", "1", "2", "1" }));
+		stubs.stationsNearN7("샘플측정소A");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "30", "10", "1", "2", "1" });
 		reportN7(FieldReportKind.DUST_BAD, FieldReportKind.DUST_BAD, FieldReportKind.DUST_BAD);
 
 		AxisDivergence air = axis(weatherApi.findForecastDivergence(N7), DivergenceAxis.AIR);

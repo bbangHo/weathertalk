@@ -67,10 +67,20 @@ class WeatherSourceAdapterTests {
 				HttpSourceSupport.client(base, Duration.ofMillis(300)), calls);
 	}
 
+	/** 실제 HTTP 시도마다 센 기능 이름(Redis 대신 기록). */
+	final List<String> recorded = new java.util.concurrent.CopyOnWriteArrayList<>();
+
 	AirKoreaHttpSource airKorea(String key) {
 		String base = server.baseUrl() + "/air";
-		return new AirKoreaHttpSource(new WeatherSourceProperties.AirKorea(base, key),
-				HttpSourceSupport.client(base, Duration.ofMillis(300)), calls);
+		WeatherSourceProperties.AirKorea properties = new WeatherSourceProperties.AirKorea(base, key, 2, 500, 0.8);
+		AirKoreaCallCounter counter = new AirKoreaCallCounter(null, properties, java.time.Clock.systemUTC()) {
+			@Override
+			public Level record(String operation) {
+				recorded.add(operation);
+				return Level.NORMAL;
+			}
+		};
+		return new AirKoreaHttpSource(properties, HttpSourceSupport.client(base, Duration.ofMillis(300)), calls, counter);
 	}
 
 	/** 키가 비어 있으면 호출하지 않고 '키 없음'으로 끝난다(기동은 정상, 수집 시 없음 처리). */
@@ -78,7 +88,7 @@ class WeatherSourceAdapterTests {
 	void missingKeyDoesNotCallSource() {
 		assertThatThrownBy(() -> kma("").fetchObservation(GRID, kst("2026-10-13T09:00")))
 			.isInstanceOf(SourceException.KeyMissing.class);
-		assertThatThrownBy(() -> airKorea(null).fetchMeasurements("중구")).isInstanceOf(SourceException.KeyMissing.class);
+		assertThatThrownBy(() -> airKorea(null).fetchRealtime("전국")).isInstanceOf(SourceException.KeyMissing.class);
 		assertThat(kma(" ").configured()).isFalse();
 		server.verify(exactly(0), anyRequestedFor(anyUrl()));
 	}
@@ -186,31 +196,93 @@ class WeatherSourceAdapterTests {
 			.containsExactly("0900", "0900");
 	}
 
-	/** 에어코리아: "-"는 결측, 자정은 전날 "24:00", 등급 결측이면 농도로 오염물질별 공식 경계 판정. 최신 순. */
+	/** 시도별 실시간 측정(대기오염정보 v1.4): sidoName=전국, ver=1.3. "-"는 결측, 자정은 전날 "24:00", 등급 결측이면 공식 경계 판정. */
 	@Test
-	void airKoreaMeasurementsParseMissingMidnightAndGradeFallback() {
-		new WeatherStubs(server).measurements("중구",
-				List.of(new String[] { "2026-10-12 23:00", "50", "20", "2", "2", "1" },
-						new String[] { "2026-10-12 24:00", "-", "40", "-", "-", "2" }));
+	void airKoreaRealtimeParsesMissingMidnightAndGradeFallback() {
+		server.stubFor(get(urlPathEqualTo(WeatherStubs.REALTIME)).willReturn(okJson(WeatherStubs.airItems(List.of(
+				WeatherStubs.realtimeItem("중구", new String[] { "2026-10-12 24:00", "-", "40", "-", "-", "2" }),
+				WeatherStubs.realtimeItem("종로구", new String[] { "2026-10-12 24:00", "50", "20", "2", "2", "1" }))))));
 
-		List<SourceData.AirMeasurement> measurements = airKorea("key").fetchMeasurements("중구");
+		List<SourceData.StationAirMeasurement> rows = airKorea("key").fetchRealtime(AirKoreaSource.NATIONWIDE);
 
-		assertThat(measurements.get(0).measuredAt()).isEqualTo(kst("2026-10-13T00:00"));
-		assertThat(measurements.get(0).pm10()).isNull();
-		assertThat(measurements.get(0).pm10Grade()).isNull();
-		assertThat(measurements.get(0).pm25Grade()).isEqualTo(AirGrade.BAD); // 40 → PM2.5 나쁨(36~75)
-		assertThat(measurements.get(1).measuredAt()).isEqualTo(kst("2026-10-12T23:00"));
-		assertThat(measurements.get(1).pm10Grade()).isEqualTo(AirGrade.MODERATE);
+		LoggedRequest request = server.findAll(getRequestedFor(urlPathEqualTo(WeatherStubs.REALTIME))).get(0);
+		assertThat(request.queryParameter("sidoName").firstValue()).isEqualTo("전국");
+		assertThat(request.queryParameter("ver").firstValue()).isEqualTo("1.3");
+		assertThat(request.queryParameter("returnType").firstValue()).isEqualTo("json");
+		assertThat(request.queryParameter("numOfRows").firstValue()).isEqualTo("2");
+		assertThat(rows).extracting(SourceData.StationAirMeasurement::stationName).containsExactly("중구", "종로구");
+		SourceData.AirMeasurement junggu = rows.get(0).measurement();
+		assertThat(junggu.measuredAt()).isEqualTo(kst("2026-10-13T00:00"));
+		assertThat(junggu.pm10()).isNull();
+		assertThat(junggu.pm10Grade()).isNull();
+		assertThat(junggu.pm25Grade()).isEqualTo(AirGrade.BAD); // 40 → PM2.5 나쁨(36~75)
+		assertThat(junggu.ozoneGrade()).isEqualTo(AirGrade.MODERATE);
+		assertThat(rows.get(1).measurement().pm10Grade()).isEqualTo(AirGrade.MODERATE); // 원천 등급 그대로
+		assertThat(recorded).containsExactly("getCtprvnRltmMesureDnsty");
 	}
 
+	/** 결과 코드 03(데이터 없음)·빈 목록은 미제공, 그 밖의 코드는 실패. */
 	@Test
-	void nearbyStationsAreOrderedByDistance() {
-		server.stubFor(get(urlPathEqualTo(WeatherStubs.NEARBY)).willReturn(okJson(WeatherStubs.airItems(List.of(
-				WeatherStubs.item("stationName", "먼곳", "tm", 5.2), WeatherStubs.item("stationName", "가까운곳", "tm", 0.8))))));
+	void airKoreaRealtimeNoDataIsNotReady() {
+		server.stubFor(get(urlPathEqualTo(WeatherStubs.REALTIME)).willReturn(okJson(WeatherStubs.kmaNoData())));
+		assertThatThrownBy(() -> airKorea("key").fetchRealtime("전국")).isInstanceOf(SourceException.NotReady.class);
 
-		assertThat(airKorea("key").findNearbyStations(198050.0, 451860.0)).containsExactly("가까운곳", "먼곳");
-		LoggedRequest request = server.findAll(getRequestedFor(urlPathEqualTo(WeatherStubs.NEARBY))).get(0);
-		assertThat(request.queryParameter("tmX").firstValue()).isEqualTo("198050.0");
+		server.stubFor(get(urlPathEqualTo(WeatherStubs.REALTIME)).willReturn(okJson(
+				"{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR\"}}}")));
+		assertThatThrownBy(() -> airKorea("key").fetchRealtime("전국")).isInstanceOf(SourceException.Failure.class)
+			.hasMessageContaining("22");
+	}
+
+	/**
+	 * 측정소 목록(측정소정보 v1.2): ver=1.1로 받아 dmX=경도, dmY=위도(WGS84). 전체 결과 수(totalCount)만큼 페이지를 넘겨 모은다.
+	 * 1.1 이전 판처럼 뒤바뀐 좌표는 바로잡고, 한국 밖 좌표는 없음으로 둔다.
+	 */
+	@Test
+	void stationListIsPagedByTotalCountWithWgs84Coordinates() {
+		List<java.util.Map<String, Object>> all = List.of(
+				WeatherStubs.stationItem("종로구", 127.005028, 37.572025),
+				WeatherStubs.stationItem("뒤바뀐곳", 37.504547, 126.994474),
+				WeatherStubs.stationItem("이상한곳", 0, 0),
+				WeatherStubs.item("stationName", "좌표없음", "addr", "주소", "dmX", "", "dmY", ""),
+				WeatherStubs.stationItem("강남구", 127.047470, 37.517528));
+		for (int page = 1; page <= 3; page++) {
+			List<java.util.Map<String, Object>> items = all.subList((page - 1) * 2, Math.min(page * 2, all.size()));
+			server.stubFor(get(urlPathEqualTo(WeatherStubs.STATION_LIST))
+				.withQueryParam("pageNo", com.github.tomakehurst.wiremock.client.WireMock.equalTo(String.valueOf(page)))
+				.willReturn(okJson(WeatherStubs.airItems(items, page, 2, all.size()))));
+		}
+
+		List<SourceData.AirStation> stations = airKorea("key").fetchStations();
+
+		assertThat(stations).extracting(SourceData.AirStation::name)
+			.containsExactly("종로구", "뒤바뀐곳", "이상한곳", "좌표없음", "강남구");
+		assertThat(stations.get(0).longitude()).isEqualTo(127.005028);
+		assertThat(stations.get(0).latitude()).isEqualTo(37.572025);
+		assertThat(stations.get(0).network()).isEqualTo("도시대기");
+		assertThat(stations.get(0).measuredItems()).isEqualTo("SO2, CO, O3, NO2, PM10, PM2.5");
+		assertThat(stations.get(1).longitude()).isEqualTo(126.994474);
+		assertThat(stations.get(1).latitude()).isEqualTo(37.504547);
+		assertThat(stations.get(2).longitude()).isNull();
+		assertThat(stations.get(3).latitude()).isNull();
+		List<LoggedRequest> requests = server.findAll(getRequestedFor(urlPathEqualTo(WeatherStubs.STATION_LIST)));
+		assertThat(requests).extracting(r -> r.queryParameter("pageNo").firstValue()).containsExactly("1", "2", "3");
+		assertThat(requests.get(0).queryParameter("ver").firstValue()).isEqualTo("1.1");
+		assertThat(requests.get(0).queryParameter("numOfRows").firstValue()).isEqualTo("2");
+		assertThat(recorded).containsExactly("getMsrstnList", "getMsrstnList", "getMsrstnList");
+	}
+
+	/** 중간 페이지가 비어 전체 결과 수에 못 미치면 실패 — 일부 목록으로 폐지를 판정하지 않게. */
+	@Test
+	void incompleteStationListFails() {
+		server.stubFor(get(urlPathEqualTo(WeatherStubs.STATION_LIST))
+			.withQueryParam("pageNo", com.github.tomakehurst.wiremock.client.WireMock.equalTo("1"))
+			.willReturn(okJson(WeatherStubs.airItems(List.of(WeatherStubs.stationItem("가", 127.0, 37.5),
+					WeatherStubs.stationItem("나", 127.1, 37.5)), 1, 2, 5))));
+		server.stubFor(get(urlPathEqualTo(WeatherStubs.STATION_LIST))
+			.withQueryParam("pageNo", com.github.tomakehurst.wiremock.client.WireMock.equalTo("2"))
+			.willReturn(okJson(WeatherStubs.airItems(List.of(), 2, 2, 5))));
+
+		assertThatThrownBy(() -> airKorea("key").fetchStations()).isInstanceOf(SourceException.Failure.class);
 	}
 
 }

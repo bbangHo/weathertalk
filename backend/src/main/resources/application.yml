@@ -127,7 +127,7 @@ weather:
     availability-delay: 20m
     max-staleness: 3h
     station-fallback-count: 3
-    station-mapping-ttl: 30d
+    station-sync-interval: 1d   # 측정소 목록(getMsrstnList) 동기화 주기. 동네-측정소 대응은 이 목록으로 매번 계산(스펙 station-mapping-ttl 대체)
   uv:
     availability-delay: 30m
   external:
@@ -188,8 +188,13 @@ weather:
       service-key: ${WEATHER_KMA_SERVICE_KEY:}
     air-korea:
       base-url: https://apis.data.go.kr/B552584
-      # 필요: 한국환경공단_에어코리아_대기오염정보, 한국환경공단_에어코리아_측정소정보 활용신청
+      # 필요: 한국환경공단_에어코리아_대기오염정보(getCtprvnRltmMesureDnsty), 측정소정보(getMsrstnList) 활용신청
       service-key: ${WEATHER_AIRKOREA_SERVICE_KEY:}
+      # 목록 조회 numOfRows. 전국 측정소(약 700곳)·전국 실시간 측정을 한 페이지(호출 1건)로 받는다
+      page-size: 1000
+      # 기능(오퍼레이션)별 하루 호출 한도(개발계정 500). 넘겨도 막지 않고 경고 로그만 남긴다
+      daily-limit: 500
+      daily-limit-warn-ratio: 0.8
     jobs:
       # 사전 갱신·중기 정기 수집·정리 정기 작업 등록 여부
       enabled: true

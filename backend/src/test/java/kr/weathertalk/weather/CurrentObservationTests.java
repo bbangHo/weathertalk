@@ -35,9 +35,8 @@ class CurrentObservationTests extends WeatherTestBase {
 		stubs.observation(N7_GRID, kst("2026-10-13T09:00"),
 				Map.of("T1H", "18.3", "REH", "60", "WSD", "2.1", "RN1", "0", "PTY", "0"));
 		stubs.shortTerm(N7_GRID, kst("2026-10-13T08:00"), 72, at -> at.getHour() == 9 ? Map.of("SKY", "3") : Map.of());
-		stubs.nearbyStations("샘플측정소A", "샘플측정소B");
-		stubs.measurements("샘플측정소A", List.of(new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" },
-				new String[] { "2026-10-13 08:00", "40", "18", "2", "2", "1" }));
+		stubs.stationsNearN7("샘플측정소A", "샘플측정소B");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" });
 		stubs.uv(UV_AREA, kst("2026-10-13T06:00"), 2, 4, 6, 3);
 	}
 
@@ -89,8 +88,8 @@ class CurrentObservationTests extends WeatherTestBase {
 		clock.set(kst("2026-10-13T09:15"));
 		// 결측 표기(-999), 항목 누락, 미정의 강수 형태 코드
 		stubs.observation(N7_GRID, kst("2026-10-13T09:00"), Map.of("T1H", "-999", "WSD", "1.0", "RN1", "-", "PTY", "9"));
-		stubs.nearbyStations("샘플측정소A");
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 09:00", "-", "12", "-", "-", "-" }));
+		stubs.stationsNearN7("샘플측정소A");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "-", "12", "-", "-", "-" });
 
 		CurrentObservation o = weatherApi.findCurrentObservation(N7);
 
@@ -224,7 +223,7 @@ class CurrentObservationTests extends WeatherTestBase {
 		}
 		server.verify(exactly(1), ncstRequested(N7_GRID, kst("2026-10-13T09:00")));
 		server.verify(exactly(1), vilageRequested(N7_GRID, kst("2026-10-13T08:00")));
-		server.verify(exactly(1), getRequestedFor(urlPathEqualTo(WeatherStubs.MEASURE)));
+		server.verify(exactly(1), getRequestedFor(urlPathEqualTo(WeatherStubs.REALTIME)));
 		server.verify(exactly(1), getRequestedFor(urlPathEqualTo(WeatherStubs.UV)));
 	}
 
@@ -235,7 +234,7 @@ class CurrentObservationTests extends WeatherTestBase {
 		stubNormalSources();
 		weatherApi.findCurrentObservation(N7);
 
-		stubs.measurementsResponse("샘플측정소A", WeatherStubs.serverError());
+		stubs.realtimeResponse(WeatherStubs.serverError());
 		clock.set(kst("2026-10-13T10:25"));
 		AirQuality air = weatherApi.findCurrentObservation(N7).airQuality();
 
@@ -248,9 +247,9 @@ class CurrentObservationTests extends WeatherTestBase {
 	@Test
 	void fallsBackToNextStationWhenNearestMeasurementIsMissing() {
 		clock.set(kst("2026-10-13T09:15"));
-		stubs.nearbyStations("샘플측정소A", "샘플측정소B");
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 09:00", "-", "-", "-", "-", "-" }));
-		stubs.measurements("샘플측정소B", List.<String[]>of(new String[] { "2026-10-13 09:00", "90", "40", "3", "3", "2" }));
+		stubs.stationsNearN7("샘플측정소A", "샘플측정소B");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "-", "-", "-", "-", "-" });
+		stubs.measurement("샘플측정소B", new String[] { "2026-10-13 09:00", "90", "40", "3", "3", "2" });
 
 		AirQuality air = weatherApi.findCurrentObservation(N7).airQuality();
 

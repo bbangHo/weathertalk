@@ -1,6 +1,8 @@
 package kr.weathertalk.weather.internal.collect;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -99,14 +101,20 @@ public class WeatherCollector {
 	}
 
 	/**
-	 * 측정소의 최근 24시간 측정을 받아 저장한다. 받은 최신 측정이 기다리던 시각보다 이르면 미제공으로 기록해
-	 * not-ready-retry-interval 뒤에 다시 받는다(대기질 갱신 주기 = 매시 + weather.air.availability-delay, legacy 04-#12).
+	 * 시도별 실시간 측정을 '전국'으로 한 번 받아 모든 측정소의 최신 측정을 저장한다(호출 1건으로 모든 동네가 값을 얻는다).
+	 * 시도마다 부르면 활성 동네가 걸친 시도 수만큼 호출이 늘지만 전국은 전국 측정소를 한 페이지로 주므로 항상 1건 이하다(03 구현 메모 §13).
+	 * 받은 최신 측정이 기다리던 시각보다 이르면 미제공으로 기록해 not-ready-retry-interval 뒤에 다시 받는다
+	 * (대기질 갱신 주기 = 매시 + weather.air.availability-delay, legacy 04-#12).
 	 */
-	public Outcome ensureAir(String station, boolean preRefresh) {
-		return coordinator.ensure(CollectionKind.AIR, station, () -> air.latestMeasuredAt(station), target -> {
-			List<SourceData.AirMeasurement> measurements = airKorea.fetchMeasurements(station);
-			air.saveMeasurements(station, measurements, clock.instant());
-			if (measurements.isEmpty() || measurements.get(0).measuredAt().isBefore(target)) {
+	public Outcome ensureAir(boolean preRefresh) {
+		return coordinator.ensure(CollectionKind.AIR, AirKoreaSource.NATIONWIDE, air::latestMeasuredAt, target -> {
+			List<SourceData.StationAirMeasurement> rows = airKorea.fetchRealtime(AirKoreaSource.NATIONWIDE);
+			air.saveMeasurements(rows, clock.instant());
+			Instant latest = rows.stream()
+				.map(row -> row.measurement().measuredAt())
+				.max(Comparator.naturalOrder())
+				.orElse(null);
+			if (latest == null || latest.isBefore(target)) {
 				throw new SourceException.NotReady("에어코리아 " + target + " 측정 미제공");
 			}
 		}, preRefresh);

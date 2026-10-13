@@ -185,10 +185,10 @@ class HomeFeelingSectionsTests extends FeelingTestBase {
 		ForecastGrid grid = gridOf(N1);
 		stubs.shortTerm(grid, kst("2026-10-13T08:00"), 24);
 		// 현재 관측 경로(실황·측정소·자외선)를 느리게: 현재 날씨와 민감도별 체감 섹션이 시간 제한(2초)을 넘긴다
-		stubs.nearbyStations("샘플측정소A", "샘플측정소B");
+		stubs.stationsNearN7("샘플측정소A", "샘플측정소B");
 		server.stubFor(WeatherStubs.ncstRequest(grid, kst("2026-10-13T09:00"))
 			.willReturn(okJson(WeatherStubs.kmaNoData()).withFixedDelay(2000)));
-		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.MEASURE))
+		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.REALTIME))
 			.willReturn(okJson("{}").withFixedDelay(2000)));
 		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.UV))
 			.willReturn(okJson("{}").withFixedDelay(2000)));

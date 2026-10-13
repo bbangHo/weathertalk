@@ -156,12 +156,11 @@ class ObservationAssembler {
 	}
 
 	private AirQuality airQuality(Neighborhood neighborhood, Instant at, boolean collectIfStale) {
-		List<String> stations = collectIfStale ? stationMapper.stations(neighborhood)
-				: air.findMapping(neighborhood.id()).map(AirStore.StationMapping::stations).orElse(List.of());
+		List<String> stations = stationMapper.stations(neighborhood, collectIfStale);
+		if (collectIfStale && !stations.isEmpty()) {
+			collector.ensureAir(false);
+		}
 		for (String station : stations) {
-			if (collectIfStale) {
-				collector.ensureAir(station, false);
-			}
 			Optional<SourceData.AirMeasurement> latest = air.findLatestAtOrBefore(station, at);
 			if (latest.isEmpty() || (latest.get().pm10() == null && latest.get().pm25() == null
 					&& latest.get().pm10Grade() == null && latest.get().pm25Grade() == null)) {

@@ -1,10 +1,13 @@
 package kr.weathertalk.weather.internal.collect;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import kr.weathertalk.weather.internal.fieldreport.FieldReportCleanupService;
+import kr.weathertalk.weather.internal.region.AirStationSync;
 
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
@@ -23,12 +26,30 @@ class WeatherJobs {
 	private final PreRefreshService preRefresh;
 	private final RetentionCleanupService cleanup;
 	private final FieldReportCleanupService fieldReportCleanup;
+	private final AirStationSync airStationSync;
 
 	WeatherJobs(PreRefreshService preRefresh, RetentionCleanupService cleanup,
-			FieldReportCleanupService fieldReportCleanup) {
+			FieldReportCleanupService fieldReportCleanup, AirStationSync airStationSync) {
 		this.preRefresh = preRefresh;
 		this.cleanup = cleanup;
 		this.fieldReportCleanup = fieldReportCleanup;
+		this.airStationSync = airStationSync;
+	}
+
+	/**
+	 * 에어코리아 측정소 목록 동기화: 매시 확인하고 weather.air.station-sync-interval이 지났거나 목록이 비었을 때만 받는다
+	 * (주기가 설정값이라 예약 시각을 고정하지 않는다. 실패하면 다음 시에 다시 시도).
+	 */
+	@Scheduled(cron = "0 7 * * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "weather.air-station-sync", lockAtMostFor = "PT10M", lockAtLeastFor = "PT20S")
+	void airStationSync() {
+		airStationSync.syncIfDue();
+	}
+
+	/** 기동 시 측정소 목록이 비어 있으면 1회 받는다. 기동을 막지 않도록 별도 스레드에서 돈다. */
+	@EventListener(ApplicationReadyEvent.class)
+	void airStationSyncOnStartup() {
+		Thread.ofVirtual().name("weather-air-station-sync").start(airStationSync::ensureListed);
 	}
 
 	@Scheduled(cron = "0 * * * * *", zone = "Asia/Seoul")

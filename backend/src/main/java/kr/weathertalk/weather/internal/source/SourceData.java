@@ -45,4 +45,17 @@ public final class SourceData {
 			AirGrade ozoneGrade) {
 	}
 
+	/** 측정소 하나의 측정(시도별 실시간 측정 응답의 한 행). */
+	public record StationAirMeasurement(String stationName, AirMeasurement measurement) {
+	}
+
+	/**
+	 * 측정소 목록의 한 측정소(getMsrstnList ver=1.1). 좌표는 WGS84 경도·위도이며 없거나 이상하면 null.
+	 *
+	 * @param measuredItems 측정 항목 원문(예: "SO2, CO, O3, NO2, PM10, PM2.5")
+	 */
+	public record AirStation(String name, String address, String network, String measuredItems, String installedYear,
+			Double longitude, Double latitude) {
+	}
+
 }

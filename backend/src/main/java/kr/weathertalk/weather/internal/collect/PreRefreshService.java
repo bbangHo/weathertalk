@@ -18,7 +18,7 @@ import kr.weathertalk.neighborhood.ForecastGrid;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.weather.internal.config.WeatherProperties;
-import kr.weathertalk.weather.internal.region.AirStationMapper;
+import kr.weathertalk.weather.internal.region.AirStationSync;
 import kr.weathertalk.weather.internal.region.MidTermRegions;
 import kr.weathertalk.weather.internal.region.UvAreas;
 import kr.weathertalk.weather.internal.source.AirKoreaSource;
@@ -38,18 +38,18 @@ public class PreRefreshService {
 
 	private final NeighborhoodApi neighborhoodApi;
 	private final WeatherCollector collector;
-	private final AirStationMapper stationMapper;
+	private final AirStationSync stationSync;
 	private final MidTermRegions midTermRegions;
 	private final KmaSource kma;
 	private final AirKoreaSource airKorea;
 	private final WeatherProperties properties;
 
 	public PreRefreshService(NeighborhoodApi neighborhoodApi, WeatherCollector collector,
-			AirStationMapper stationMapper, MidTermRegions midTermRegions, KmaSource kma, AirKoreaSource airKorea,
+			AirStationSync stationSync, MidTermRegions midTermRegions, KmaSource kma, AirKoreaSource airKorea,
 			WeatherProperties properties) {
 		this.neighborhoodApi = neighborhoodApi;
 		this.collector = collector;
-		this.stationMapper = stationMapper;
+		this.stationSync = stationSync;
 		this.midTermRegions = midTermRegions;
 		this.kma = kma;
 		this.airKorea = airKorea;
@@ -76,11 +76,13 @@ public class PreRefreshService {
 			areas.forEach(area -> tasks.add(() -> collector.ensureUv(area, true)));
 		}
 		if (airKorea.configured()) {
-			for (Neighborhood neighborhood : active) {
-				tasks.add(() -> stationMapper.stations(neighborhood)
-					.stream()
-					.findFirst()
-					.ifPresent(station -> collector.ensureAir(station, true)));
+			// 대기질은 전국 1회 수집이 모든 활성 동네를 덮는다. 활성 동네가 없으면 부르지 않는다
+			if (!active.isEmpty()) {
+				tasks.add(() -> {
+					if (stationSync.ensureListed()) {
+						collector.ensureAir(true);
+					}
+				});
 			}
 		}
 		else {

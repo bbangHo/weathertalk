@@ -4,6 +4,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -51,8 +55,17 @@ public record WeatherSourceProperties(@NotNull @Valid Kma kma, @NotNull @Valid A
 
 	}
 
-	/** 에어코리아 측정소 정보·대기오염 정보(공공데이터포털). @param serviceKey 디코딩된 인증키 */
-	public record AirKorea(@NotBlank String baseUrl, String serviceKey) {
+	/**
+	 * 에어코리아 측정소 정보·대기오염 정보(공공데이터포털).
+	 *
+	 * @param serviceKey 디코딩된 인증키
+	 * @param pageSize 목록 조회 한 페이지 결과 수(numOfRows). 전국 측정소(약 700곳)를 한 페이지로 받도록 크게 둔다
+	 * @param dailyLimit 기능(오퍼레이션)별 하루 호출 한도(개발계정 500). 넘겨도 막지 않고 경고 로그만 남긴다
+	 * @param dailyLimitWarnRatio 하루 호출이 한도의 이 비율에 닿으면 '한도에 가까움' 경고
+	 */
+	public record AirKorea(@NotBlank String baseUrl, String serviceKey, @NotNull @Min(1) @Max(10000) Integer pageSize,
+			@NotNull @Min(1) Integer dailyLimit,
+			@NotNull @DecimalMin("0.1") @DecimalMax("1.0") Double dailyLimitWarnRatio) {
 
 		public boolean configured() {
 			return serviceKey != null && !serviceKey.isBlank();

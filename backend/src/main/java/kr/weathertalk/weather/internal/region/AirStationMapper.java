@@ -1,108 +1,45 @@
 package kr.weathertalk.weather.internal.region;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
-import kr.weathertalk.neighborhood.GeoPoint;
 import kr.weathertalk.neighborhood.Neighborhood;
-import kr.weathertalk.weather.internal.collect.CollectStateRepository;
-import kr.weathertalk.weather.internal.collect.CollectStateRepository.Result;
-import kr.weathertalk.weather.internal.collect.CollectionKind;
 import kr.weathertalk.weather.internal.config.WeatherProperties;
-import kr.weathertalk.weather.internal.source.AirKoreaSource;
-import kr.weathertalk.weather.internal.source.SourceException;
-import kr.weathertalk.weather.internal.store.AirStore;
+import kr.weathertalk.weather.internal.store.AirStationStore;
 
 /**
- * 동네 → 가까운 순 측정소 대응 (03 §3.6). 동네 대표 좌표(사람의 위치 아님)를 에어코리아가 기대하는 TM 좌표로 공식 변환해
- * 근접측정소를 찾는다(legacy 04-#13). 대응은 weather.air.station-mapping-ttl마다 다시 정하고, 결측 대비로 station-fallback-count곳을 둔다.
+ * 동네 → 가까운 순 측정소 대응 (03 §3.6). 동네 대표 좌표(사람의 위치 아님)에서 동기화된 측정소 목록(WGS84) 중 가까운
+ * station-fallback-count곳을 PostGIS로 계산한다. 외부 호출이 없어 대응을 따로 저장하지 않고 매번 계산한다 — 목록 동기화로
+ * 신설·폐지가 곧바로 반영된다.
+ * <p>
+ * 근접측정소 목록(getNearbyMsrstnList)을 부르는 비상 경로는 두지 않는다: 목록이 비는 경우는 측정소정보 서비스 자체 장애일 때인데
+ * 근접측정소 목록도 같은 서비스라 함께 실패하고, 동네마다 부르면 기능별 하루 한도(500)를 금방 쓴다. 목록이 비면
+ * {@link AirStationSync#ensureListed()}가 목록을 다시 받는다(실패 백오프 적용).
  */
 @Component
 public class AirStationMapper {
 
-	private static final Logger log = LoggerFactory.getLogger(AirStationMapper.class);
+	private final AirStationStore store;
+	private final AirStationSync sync;
+	private final WeatherProperties properties;
+
+	public AirStationMapper(AirStationStore store, AirStationSync sync, WeatherProperties properties) {
+		this.store = store;
+		this.sync = sync;
+		this.properties = properties;
+	}
 
 	/**
-	 * 에어코리아 근접측정소 API의 TM 좌표계: Korea 2000 / Central Belt(GRS80, 중부원점 127°E·38°N, 가산 200000·500000).
-	 * 레거시의 EPSG:4166→5179(UTM-K) 변환은 측정소 API 좌표계와 달라 엉뚱한 측정소를 골랐다.
+	 * 가까운 순 측정소(최대 station-fallback-count곳).
+	 *
+	 * @param syncIfEmpty 목록이 비었으면 받아 본다(요청 시 수집·사전 갱신). 과거 관측 조회는 저장분만 쓴다
 	 */
-	static final int AIRKOREA_TM_SRID = 5181;
-
-	public record TmPoint(double x, double y) {
-	}
-
-	private final JdbcClient jdbc;
-	private final AirStore store;
-	private final AirKoreaSource source;
-	private final CollectStateRepository states;
-	private final WeatherProperties properties;
-	private final Clock clock;
-
-	public AirStationMapper(JdbcClient jdbc, AirStore store, AirKoreaSource source, CollectStateRepository states,
-			WeatherProperties properties, Clock clock) {
-		this.jdbc = jdbc;
-		this.store = store;
-		this.source = source;
-		this.states = states;
-		this.properties = properties;
-		this.clock = clock;
-	}
-
-	/** 가까운 순 측정소(최대 station-fallback-count곳). 정하지 못하면 마지막 대응 또는 빈 목록. */
-	public List<String> stations(Neighborhood neighborhood) {
-		Instant now = clock.instant();
-		Optional<AirStore.StationMapping> mapping = store.findMapping(neighborhood.id());
-		if (mapping.isPresent() && mapping.get().mappedAt().plus(properties.air().stationMappingTtl()).isAfter(now)) {
-			return mapping.get().stations();
+	public List<String> stations(Neighborhood neighborhood, boolean syncIfEmpty) {
+		if (syncIfEmpty && !sync.ensureListed()) {
+			return List.of();
 		}
-		List<String> fallback = mapping.map(AirStore.StationMapping::stations).orElse(List.of());
-		String unit = neighborhood.id().value();
-		boolean backingOff = states.find(CollectionKind.AIR_STATIONS, unit)
-			.filter(s -> s.lastResult() == Result.FAILURE || s.lastResult() == Result.KEY_MISSING)
-			.filter(s -> s.lastAttemptAt().plus(properties.collect().failureBackoff()).isAfter(now))
-			.isPresent();
-		if (backingOff) {
-			return fallback;
-		}
-		try {
-			TmPoint tm = toAirKoreaTm(neighborhood.representativePoint());
-			List<String> stations = source.findNearbyStations(tm.x(), tm.y())
-				.stream()
-				.limit(properties.air().stationFallbackCount())
-				.toList();
-			store.saveMapping(neighborhood.id(), stations, now);
-			states.record(CollectionKind.AIR_STATIONS, unit, now, now, Result.SUCCESS, now);
-			return stations;
-		}
-		catch (SourceException.KeyMissing e) {
-			log.warn("측정소 대응 생략: {}", e.getMessage());
-			states.record(CollectionKind.AIR_STATIONS, unit, now, null, Result.KEY_MISSING, now);
-		}
-		catch (SourceException e) {
-			log.warn("측정소 대응 실패({}): {}", unit, e.getMessage());
-			states.record(CollectionKind.AIR_STATIONS, unit, now, null, Result.FAILURE, now);
-		}
-		return fallback;
-	}
-
-	/** WGS84 → 에어코리아 TM. 변환은 PostGIS(PROJ)의 공식 정의를 쓴다. 결과는 저장하지 않는다. */
-	public TmPoint toAirKoreaTm(GeoPoint point) {
-		return jdbc.sql("""
-				SELECT ST_X(p) AS x, ST_Y(p) AS y
-				FROM (SELECT ST_Transform(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), :srid) AS p) t
-				""")
-			.param("lon", point.longitude())
-			.param("lat", point.latitude())
-			.param("srid", AIRKOREA_TM_SRID)
-			.query((rs, n) -> new TmPoint(rs.getDouble("x"), rs.getDouble("y")))
-			.single();
+		return store.nearest(neighborhood.representativePoint(), properties.air().stationFallbackCount());
 	}
 
 }

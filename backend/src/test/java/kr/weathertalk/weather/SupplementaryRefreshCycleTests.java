@@ -26,22 +26,21 @@ class SupplementaryRefreshCycleTests extends WeatherTestBase {
 
 	@Test
 	void airQualityIsRefreshedHourlyAndCarriesMeasurementTime_04_12() {
-		stubs.nearbyStations("샘플측정소A");
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" }));
+		stubs.stationsNearN7("샘플측정소A");
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" });
 		clock.set(kst("2026-10-13T09:25"));
 		assertThat(weatherApi.findCurrentObservation(N7).airQuality().measuredAt()).isEqualTo(kst("2026-10-13T09:00"));
 
 		clock.set(kst("2026-10-13T09:55"));
 		weatherApi.findCurrentObservation(N7);
 		weatherApi.findCurrentObservation(N7);
-		server.verify(exactly(1), getRequestedFor(urlPathEqualTo(WeatherStubs.MEASURE)));
+		server.verify(exactly(1), getRequestedFor(urlPathEqualTo(WeatherStubs.REALTIME)));
 
 		// 다음 시(10:00 + 제공 지연 20분)가 되면 다시 받는다
-		stubs.measurements("샘플측정소A", List.<String[]>of(new String[] { "2026-10-13 10:00", "60", "30", "2", "3", "1" },
-				new String[] { "2026-10-13 09:00", "45", "20", "2", "2", "1" }));
+		stubs.measurement("샘플측정소A", new String[] { "2026-10-13 10:00", "60", "30", "2", "3", "1" });
 		clock.set(kst("2026-10-13T10:25"));
 		AirQuality air = weatherApi.findCurrentObservation(N7).airQuality();
-		server.verify(exactly(2), getRequestedFor(urlPathEqualTo(WeatherStubs.MEASURE)));
+		server.verify(exactly(2), getRequestedFor(urlPathEqualTo(WeatherStubs.REALTIME)));
 		assertThat(air.measuredAt()).isEqualTo(kst("2026-10-13T10:00"));
 		assertThat(air.combinedGrade()).isEqualTo(AirGrade.BAD);
 		assertThat(air.freshness()).isEqualTo(Freshness.FRESH);

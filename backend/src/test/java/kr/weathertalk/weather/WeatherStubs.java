@@ -27,6 +27,7 @@ import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 
 import kr.weathertalk.neighborhood.ForecastGrid;
+import kr.weathertalk.neighborhood.GeoPoint;
 import kr.weathertalk.shared.time.TimeConfig;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -40,8 +41,11 @@ public final class WeatherStubs {
 	public static final String MID_LAND = "/kma/MidFcstInfoService/getMidLandFcst";
 	public static final String MID_TA = "/kma/MidFcstInfoService/getMidTa";
 	public static final String UV = "/kma/LivingWthrIdxServiceV4/getUVIdxV4";
-	public static final String NEARBY = "/air/MsrstnInfoInqireSvc/getNearbyMsrstnList";
-	public static final String MEASURE = "/air/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty";
+	public static final String STATION_LIST = "/air/MsrstnInfoInqireSvc/getMsrstnList";
+	public static final String REALTIME = "/air/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty";
+
+	/** 동네 7 대표점(35.105°N, 129.005°E). 측정소 모의 좌표의 기준. */
+	public static final GeoPoint N7_POINT = new GeoPoint(35.105, 129.005);
 
 	public static final ForecastGrid N7_GRID = new ForecastGrid(98, 76);
 
@@ -63,12 +67,14 @@ public final class WeatherStubs {
 	public static void resetAll(JdbcClient jdbc, StringRedisTemplate redis, WireMockServer server) {
 		jdbc.sql("""
 				TRUNCATE weather_collect_state, weather_observation, weather_short_term_slot, weather_short_term_issue,
-				    weather_mid_land, weather_mid_temperature, weather_air_measurement, weather_air_station_mapping,
+				    weather_mid_land, weather_mid_temperature, weather_air_measurement, weather_air_station,
 				    weather_uv_index, weather_field_report, weather_field_report_precip_publication, weather_precip_episode
 				""").update();
-		Set<String> keys = redis.keys("weather:collect:*");
-		if (keys != null && !keys.isEmpty()) {
-			redis.delete(keys);
+		for (String pattern : List.of("weather:collect:*", "weather:airkorea:*")) {
+			Set<String> keys = redis.keys(pattern);
+			if (keys != null && !keys.isEmpty()) {
+				redis.delete(keys);
+			}
 		}
 		server.resetAll();
 		// 정의하지 않은 요청은 빠르게 404(근접 불일치 계산 없이) — 원천 장애로 다뤄진다
@@ -220,29 +226,57 @@ public final class WeatherStubs {
 			.willReturn(okJson(kmaItems(List.of(item)))));
 	}
 
-	// ── 에어코리아 ──
+	// ── 에어코리아 (측정소정보 기술문서 v1.2 getMsrstnList, 대기오염정보 기술문서 v1.4 getCtprvnRltmMesureDnsty) ──
 
-	public void nearbyStations(String... stations) {
+	/** 시도별 실시간 측정 모의 응답에 담을 측정소별 최신 측정(측정소 → 행). 같은 측정소를 다시 넣으면 교체된다. */
+	private final Map<String, Map<String, Object>> realtimeRows = new LinkedHashMap<>();
+
+	/**
+	 * 측정소 목록: 동네 7 대표점에서 북쪽으로 1km, 2km, … 떨어진 순서로 둔다(이름 순서 = 가까운 순).
+	 */
+	public void stationsNearN7(String... stations) {
 		List<Map<String, Object>> items = new ArrayList<>();
 		for (int i = 0; i < stations.length; i++) {
-			items.add(item("stationName", stations[i], "addr", "샘플 주소", "tm", 1.0 + i));
+			// 위도 0.009° ≈ 1km
+			items.add(stationItem(stations[i], N7_POINT.longitude(), N7_POINT.latitude() + 0.009 * (i + 1)));
 		}
-		server.stubFor(get(urlPathEqualTo(NEARBY)).willReturn(okJson(airItems(items))));
+		stationList(items);
 	}
 
-	/** 측정. rows: [측정 시각(KST), pm10Value, pm25Value, pm10Grade, pm25Grade, o3Grade] */
-	public void measurements(String station, List<String[]> rows) {
-		List<Map<String, Object>> items = rows.stream()
-			.map(r -> item("dataTime", r[0], "stationName", station, "pm10Value", r[1], "pm25Value", r[2],
-					"pm10Grade", r[3], "pm25Grade", r[4], "o3Grade", r[5]))
-			.toList();
-		server.stubFor(get(urlPathEqualTo(MEASURE)).withQueryParam("stationName", equalTo(station))
-			.willReturn(okJson(airItems(items))));
+	/** 측정소 목록 한 페이지로 응답(ver=1.1: dmX=경도, dmY=위도). */
+	public void stationList(List<Map<String, Object>> items) {
+		server.stubFor(get(urlPathEqualTo(STATION_LIST)).willReturn(okJson(airItems(items, 1, 1000, items.size()))));
 	}
 
-	public void measurementsResponse(String station, ResponseDefinitionBuilder response) {
-		server.stubFor(get(urlPathEqualTo(MEASURE)).withQueryParam("stationName", equalTo(station))
-			.willReturn(response));
+	public static Map<String, Object> stationItem(String name, double lon, double lat) {
+		return item("stationName", name, "addr", "샘플 주소 " + name, "year", "2015", "mangName", "도시대기", "item",
+				"SO2, CO, O3, NO2, PM10, PM2.5", "dmX", String.valueOf(lon), "dmY", String.valueOf(lat));
+	}
+
+	/**
+	 * 시도별 실시간 측정(전국)에 측정소의 최신 측정 한 행을 넣는다. 실제 응답처럼 측정소마다 최신 1행이다.
+	 *
+	 * @param row [측정 시각(KST "yyyy-MM-dd HH:mm"), pm10Value, pm25Value, pm10Grade, pm25Grade, o3Grade]
+	 */
+	public void measurement(String station, String[] row) {
+		realtimeRows.put(station, realtimeItem(station, row));
+		server.stubFor(realtimeRequest().willReturn(okJson(airItems(List.copyOf(realtimeRows.values()), 1, 1000,
+				realtimeRows.size()))));
+	}
+
+	public static Map<String, Object> realtimeItem(String station, String[] row) {
+		return item("stationName", station, "sidoName", "샘플", "mangName", "도시대기", "dataTime", row[0], "pm10Value",
+				row[1], "pm25Value", row[2], "pm10Grade", row[3], "pm25Grade", row[4], "o3Grade", row[5],
+				"pm10Grade1h", row[3], "pm25Grade1h", row[4], "khaiValue", "-", "khaiGrade", "", "pm10Flag", "",
+				"pm25Flag", "");
+	}
+
+	public static MappingBuilder realtimeRequest() {
+		return get(urlPathEqualTo(REALTIME)).withQueryParam("sidoName", equalTo("전국"));
+	}
+
+	public void realtimeResponse(ResponseDefinitionBuilder response) {
+		server.stubFor(realtimeRequest().willReturn(response));
 	}
 
 	public static String airTime(Instant instant) {
@@ -264,9 +298,14 @@ public final class WeatherStubs {
 	}
 
 	public static String airItems(List<Map<String, Object>> items) {
+		return airItems(items, 1, 100, items.size());
+	}
+
+	/** 공공데이터포털 에어코리아 JSON 형식: response.header, response.body.{items[], numOfRows, pageNo, totalCount}. */
+	public static String airItems(List<Map<String, Object>> items, int pageNo, int numOfRows, int totalCount) {
 		return JSON.writeValueAsString(Map.of("response",
 				Map.of("header", Map.of("resultCode", "00", "resultMsg", "NORMAL_CODE"), "body",
-						Map.of("totalCount", items.size(), "items", items, "pageNo", 1, "numOfRows", 100))));
+						Map.of("totalCount", totalCount, "items", items, "pageNo", pageNo, "numOfRows", numOfRows))));
 	}
 
 	public static Map<String, Object> item(Object... keyValues) {
