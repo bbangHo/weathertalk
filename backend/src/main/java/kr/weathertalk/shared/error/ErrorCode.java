@@ -68,6 +68,12 @@ public enum ErrorCode {
 	 */
 	FEEDBACK_TARGET_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	/**
+	 * 민감도 보정 제안에 응답할 수 없다(FR-FEL-08): 이미 다른 상태가 됐거나 회원의 민감도가 판정 때와 다르다. 앱은 제안을 다시 조회한다.
+	 * 응답의 {@code reason}: ACCEPTED / DECLINED / EXPIRED / INVALIDATED / SENSITIVITY_CHANGED.
+	 */
+	CALIBRATION_OFFER_NOT_ACTIVE(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// ── community ──
 
 	/** 게시글·댓글의 작성자가 아니다(수정·삭제는 작성자 본인만, FR-COM-03·04·09). */

@@ -8,10 +8,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import kr.weathertalk.feeling.CalibrationOffer;
 import kr.weathertalk.feeling.FeelingApi;
 import kr.weathertalk.feeling.FeelingRecordOwnership;
 import kr.weathertalk.feeling.FeelingRecordView;
@@ -43,18 +45,20 @@ class FeelingApiService implements FeelingApi {
 	private final SensitivityFeelingDeriver deriver;
 	private final NeighborhoodFeelingAggregator aggregator;
 	private final FeelingRecordRepository records;
-	private final ReferenceTable referenceTable;
+	private final FeelingMappingLookup mapping;
+	private final FeelingCalibrationService calibration;
 	private final NeighborhoodApi neighborhoodApi;
 	private final FeelingProperties properties;
 	private final Clock clock;
 
 	FeelingApiService(SensitivityFeelingDeriver deriver, NeighborhoodFeelingAggregator aggregator,
-			FeelingRecordRepository records, ReferenceTable referenceTable, NeighborhoodApi neighborhoodApi,
-			FeelingProperties properties, Clock clock) {
+			FeelingRecordRepository records, FeelingMappingLookup mapping, FeelingCalibrationService calibration,
+			NeighborhoodApi neighborhoodApi, FeelingProperties properties, Clock clock) {
 		this.deriver = deriver;
 		this.aggregator = aggregator;
 		this.records = records;
-		this.referenceTable = referenceTable;
+		this.mapping = mapping;
+		this.calibration = calibration;
 		this.neighborhoodApi = neighborhoodApi;
 		this.properties = properties;
 		this.clock = clock;
@@ -143,7 +147,7 @@ class FeelingApiService implements FeelingApi {
 
 	/**
 	 * 내 체감 패턴 (FR-FEL-11 규칙 3). 경향은 관측 스냅샷 '확보' 기록마다 (기록 온도 단계 − 기록 시점 그룹의 예상 단계)의 평균.
-	 * 예상 단계는 적용 중인 체감 매핑(M6), 없으면 고정 기준표로 구한다. 자기 기록이 섞이는 동네 체감은 쓰지 않는다.
+	 * 예상 단계는 적용 중인 체감 매핑(셀 대체 순서 끝까지), 없으면 고정 기준표로 구한다. 자기 기록이 섞이는 동네 체감은 쓰지 않는다.
 	 */
 	private MyFeelingRecords.Pattern pattern(List<StoredFeelingRecord> mine) {
 		Map<TemperatureTag, Integer> distribution = new LinkedHashMap<>();
@@ -151,10 +155,13 @@ class FeelingApiService implements FeelingApi {
 			distribution.put(tag, 0);
 		}
 		mine.forEach(r -> distribution.merge(r.temperature(), 1, Integer::sum));
+		Optional<LoadedMapping> active = mapping.active();
 		List<Integer> differences = mine.stream()
 			.filter(r -> r.snapshot().secured() && r.snapshot().temperature() != null)
-			.map(r -> r.temperature().level()
-					- referenceTable.tagFor(r.sensitivity(), r.snapshot().temperature()).level())
+			.map(r -> r.temperature().level() - FeelingMappingLookup
+				.expected(active, mapping.referenceTable(), r.sensitivity(), r.recordedAt(), r.snapshot().temperature(),
+						r.snapshot().humidity(), r.snapshot().windSpeed())
+				.level())
 			.toList();
 		if (differences.size() < properties.myPattern().minRecords()) {
 			return new MyFeelingRecords.Pattern(mine.size(), distribution, MyFeelingRecords.Tendency.INSUFFICIENT_RECORDS,
@@ -170,6 +177,16 @@ class FeelingApiService implements FeelingApi {
 			default -> "같은 그룹과 비슷하게 느끼는 편이에요.";
 		};
 		return new MyFeelingRecords.Pattern(mine.size(), distribution, tendency, phrase, average, differences.size());
+	}
+
+	@Override
+	public Optional<CalibrationOffer> findCalibrationOffer(MemberId memberId) {
+		return calibration.find(memberId);
+	}
+
+	@Override
+	public CalibrationOffer declineCalibrationOffer(MemberId memberId, UUID offerId) {
+		return calibration.decline(memberId, offerId);
 	}
 
 	private void requireNeighborhood(NeighborhoodId neighborhoodId) {

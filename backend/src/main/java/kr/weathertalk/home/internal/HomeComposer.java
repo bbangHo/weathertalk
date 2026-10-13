@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import kr.weathertalk.community.CommunityApi;
 import kr.weathertalk.community.PostSummary;
+import kr.weathertalk.feeling.CalibrationOffer;
 import kr.weathertalk.feeling.FeelingApi;
 import kr.weathertalk.feeling.SensitivityFeeling;
 import kr.weathertalk.feeling.SensitivityFeelings;
@@ -51,7 +52,7 @@ import kr.weathertalk.weather.PrecipitationType;
 import kr.weathertalk.weather.WeatherApi;
 
 /**
- * 홈 조합 (07 §1): 보는 동네 + 날씨 섹션 + 민감도별 체감 3그룹·피드백 버튼 상태·옷 추천·어제와 비교·외출 시각 기준 + 동네 인기글 + 예보 vs 주민 차이 배지·현장 제보 현황(weather 판정·집계 그대로 표시).
+ * 홈 조합 (07 §1): 보는 동네 + 날씨 섹션 + 민감도별 체감 3그룹·피드백 버튼 상태·옷 추천·어제와 비교·외출 시각 기준 + 동네 인기글 + 예보 vs 주민 차이 배지·현장 제보 현황(weather 판정·집계 그대로 표시) + 민감도 보정 제안 카드(회원, feeling 조회 그대로).
  * 규칙 없음 원칙(07 §1.5) — 호출·조합·섹션 상태·요청자에 따른 섹션 선택·시간 제한만 한다. 산출 출처·비교 가능 여부·옷차림은 소유 모듈 값 그대로다.
  * 옷 추천·어제 비교·외출 시각 기준은 민감도별 체감이 실패하면 조회하지 않는다(07 §1.4-3).
  */
@@ -135,6 +136,9 @@ class HomeComposer implements HomeApi {
 		// 차이 판정은 현재 날씨와 같은 수집 사본을 쓰므로 현재 날씨 섹션 뒤에 부른다(같은 수집을 두 섹션이 기다리지 않게)
 		CompletableFuture<HomeSection<ForecastDivergence>> divergence = sections.after("divergence", currentWeather,
 				c -> weatherApi.findForecastDivergence(id), d -> !d.hasBadge());
+		CompletableFuture<HomeSection<CalibrationOffer>> calibration = member == null ? null
+				: sections.start("calibration-offer",
+						() -> feelingApi.findCalibrationOffer(member.memberId()).orElse(null), offer -> false);
 		CompletableFuture<HomeSection<FieldReportStatus>> fieldReports = sections.start("field-reports",
 				() -> weatherApi.findFieldReportStatus(id, member == null ? null : member.memberId()),
 				FieldReportStatus::isEmpty);
@@ -145,7 +149,8 @@ class HomeComposer implements HomeApi {
 				SectionRunner.join(feelings), feedback == null ? null : SectionRunner.join(feedback),
 				SectionRunner.join(outfit), SectionRunner.join(yesterday),
 				departure == null ? null : SectionRunner.join(departure), SectionRunner.join(popular),
-				SectionRunner.join(divergence), SectionRunner.join(fieldReports));
+				SectionRunner.join(divergence), SectionRunner.join(fieldReports),
+				calibration == null ? null : SectionRunner.join(calibration));
 	}
 
 	/** 내 그룹 선택(07 §1.3): 회원은 회원 민감도, 비회원은 기기 민감도, 없으면 '보통' 기준 + 고르기 안내. */

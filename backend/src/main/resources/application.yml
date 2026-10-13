@@ -173,15 +173,15 @@ feeling:
   snapshot:
     max-age: 90m
     backfill-window: 24h
+    backfill-interval: 1h   # 미확보 스냅샷 백필 주기(스펙 §7에 없는 키, 04 §11 구현 메모)
   past-lookup-limit: 48h
   # 고정 기준표 (BR-FEL-18): 원 기온(℃, 체감온도 아님) → 온도 태그. 그룹별로 7·6·5·4·3·2단계 하한(이상)을 순서대로, 못 미치면 1단계
   reference-table:
     heat-sensitive: [29, 25, 22, 17, 12, 6]
     normal: [32, 27, 23, 17, 13, 8]
     cold-sensitive: [35, 29, 24, 17, 14, 10]
-  # mapping.seasons·calibration.schedule은 M6에서 추가
   mapping:
-    enabled: false   # 체감 매핑(민감도별 체감 2단계) 기능 플래그. M6 매핑 재계산 구현 후 셀 충족률을 보고 켠다
+    enabled: false   # 체감 매핑 기능 플래그. 재계산 배치는 꺼져 있어도 돌아 버전을 쌓는다. 셀 충족률·적중률을 보고 켠다
     schedule: "0 0 4 * * *"   # 매일 04:00 (Asia/Seoul)
     lookback: 365d
     min-samples: 30
@@ -193,9 +193,16 @@ feeling:
     wind-bins: [2.0, 5.0]
     max-dropped-ratio: 0.2
     retained-versions: 10
+    # 계절 구분(BR-FEL-14): 1~12월을 각각 한 계절에
+    seasons:
+      spring: [3, 4, 5]
+      summer: [6, 7, 8]
+      autumn: [9, 10, 11]
+      winter: [12, 1, 2]
   comparison:
     large-diff: 2
   calibration:
+    schedule: "0 30 4 * * *"   # 매일 04:30 (Asia/Seoul, 매핑 재계산 04:00 직후)
     lookback: 90d
     min-records: 20
     feedback-weight: 0.5

@@ -43,9 +43,14 @@ public abstract class FeelingTestBase extends WeatherTestBase {
 
 	private static boolean weatherWarmedUp;
 
+	@Autowired
+	protected kr.weathertalk.feeling.internal.FeelingMappingFlag mappingFlag;
+
 	@BeforeEach
 	void resetFeeling() {
-		jdbc.sql("TRUNCATE feeling_record").update();
+		jdbc.sql("TRUNCATE feeling_record, feeling_calibration_offer, feeling_calibration_member, "
+				+ "feeling_mapping_version CASCADE").update();
+		mappingFlag.set(false);
 		// JVM에서 첫 외부 호출(HTTP 클라이언트·JIT 준비)은 테스트용 외부 제한 시간(0.4초)을 넘길 수 있어 한 번 데워 둔다
 		if (!weatherWarmedUp) {
 			stubs.observation(gridOf(NeighborhoodTestData.N1), clock.instant().truncatedTo(java.time.temporal.ChronoUnit.HOURS),
@@ -170,6 +175,11 @@ public abstract class FeelingTestBase extends WeatherTestBase {
 			.param("snapWind", snapshotTemperature == null ? null : 2.0, java.sql.Types.DOUBLE)
 			.update();
 		return id;
+	}
+
+	@org.junit.jupiter.api.AfterEach
+	void resetMappingFlag() {
+		mappingFlag.set(false); // 기능 플래그 기본값(feeling.mapping.enabled=false)
 	}
 
 	protected UUID insertRecord(NeighborhoodId neighborhood, TemperatureSensitivity sensitivity, Instant recordedAt,

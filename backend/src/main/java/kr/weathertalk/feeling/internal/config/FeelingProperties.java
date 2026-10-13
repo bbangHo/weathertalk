@@ -1,7 +1,11 @@
 package kr.weathertalk.feeling.internal.config;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.hibernate.validator.constraints.time.DurationMin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -21,8 +25,8 @@ import jakarta.validation.constraints.Size;
 /**
  * feeling 운영 파라미터 (README 운영 파라미터, 04-feeling.md §7). 외부화 패턴은 MemberProperties Javadoc 참조.
  * <p>
- * 아직 두지 않은 키: {@code feeling.mapping.seasons}·{@code feeling.calibration.schedule}(매핑 재계산과 함께 M6,
- * 보정 판정은 매핑 재계산 직후 이어서 실행).
+ * 스펙(§7)에 없는 키: {@code feeling.snapshot.backfill-interval}(미확보 스냅샷 백필 주기 — 백필 창이 24시간이라 하루 한 번으로는
+ * 빈틈이 생긴다).
  */
 @Validated
 @ConfigurationProperties("feeling")
@@ -49,9 +53,11 @@ public record FeelingProperties(
 	public record Feedback(@NotNull @DurationMin(minutes = 1) Duration maxShownAge) {
 	}
 
+	/** @param backfillInterval 미확보 스냅샷 백필(BR-FEL-05) 실행 간격 */
 	public record Snapshot(
 			@NotNull @DurationMin(minutes = 1) Duration maxAge,
-			@NotNull @DurationMin(seconds = 0) Duration backfillWindow) {
+			@NotNull @DurationMin(seconds = 0) Duration backfillWindow,
+			@NotNull @DurationMin(minutes = 1) Duration backfillInterval) {
 	}
 
 	/**
@@ -83,8 +89,10 @@ public record FeelingProperties(
 	}
 
 	/**
-	 * @param enabled 민감도별 체감 2단계(체감 매핑) 사용 여부. 매핑 재계산은 M6에서 구현하며 그 전까지 꺼 둔다(기능 플래그)
+	 * @param enabled 체감 매핑 사용 여부(기능 플래그). 끄면 민감도별 체감 2단계·내 체감 패턴·보정 제안 판정이 적용 중인 매핑을 쓰지
+	 *        않는다. 재계산 배치는 꺼져 있어도 돌아 버전(셀 충족률·적중률)을 쌓는다. 데이터가 쌓이면 켠다(implementation-plan M6)
 	 * @param schedule 재계산 cron(Asia/Seoul)
+	 * @param seasons 계절 구분(월 → 계절, BR-FEL-14)
 	 * @param tempMin 기온 구간 하한(℃)
 	 * @param humidityBins 습도 구간 경계(%), 오름차순
 	 * @param windBins 풍속 구간 경계(m/s), 오름차순
@@ -102,7 +110,26 @@ public record FeelingProperties(
 			@NotEmpty List<@NotNull Integer> humidityBins,
 			@NotEmpty List<@NotNull Double> windBins,
 			@NotNull @DecimalMin("0") @DecimalMax("1") Double maxDroppedRatio,
-			@NotNull @Min(1) Integer retainedVersions) {
+			@NotNull @Min(1) Integer retainedVersions,
+			@NotNull @Valid Seasons seasons) {
+
+		@AssertTrue(message = "feeling.mapping.humidity-bins·wind-bins는 엄격히 오름차순이어야 합니다")
+		public boolean isBinsAscending() {
+			return ascending(humidityBins) && ascending(windBins);
+		}
+
+		private static boolean ascending(List<? extends Number> bounds) {
+			if (bounds == null) {
+				return true;
+			}
+			for (int i = 1; i < bounds.size(); i++) {
+				if (bounds.get(i) == null || bounds.get(i - 1) == null
+						|| bounds.get(i).doubleValue() <= bounds.get(i - 1).doubleValue()) {
+					return false;
+				}
+			}
+			return true;
+		}
 
 		@AssertTrue(message = "feeling.mapping.schedule은 올바른 cron 식이어야 합니다")
 		public boolean isScheduleValid() {
@@ -116,11 +143,38 @@ public record FeelingProperties(
 
 	}
 
+	/** 계절 구분 (BR-FEL-14). 1~12월이 각각 정확히 한 계절에 들어야 한다. */
+	public record Seasons(
+			@NotEmpty List<@NotNull Integer> spring,
+			@NotEmpty List<@NotNull Integer> summer,
+			@NotEmpty List<@NotNull Integer> autumn,
+			@NotEmpty List<@NotNull Integer> winter) {
+
+		@AssertTrue(message = "feeling.mapping.seasons는 1~12월을 각각 정확히 한 번씩 담아야 합니다")
+		public boolean isEveryMonthOnce() {
+			if (spring == null || summer == null || autumn == null || winter == null) {
+				return true;
+			}
+			List<Integer> all = new ArrayList<>();
+			all.addAll(spring);
+			all.addAll(summer);
+			all.addAll(autumn);
+			all.addAll(winter);
+			return all.size() == 12
+					&& new HashSet<>(all).equals(IntStream.rangeClosed(1, 12).boxed().collect(Collectors.toSet()));
+		}
+
+	}
+
 	public record Comparison(@NotNull @Min(1) Integer largeDiff) {
 	}
 
-	/** @param minMargin 현재 그룹 대비 최소 오차 개선 폭(단계) */
+	/**
+	 * @param schedule 판정 cron(Asia/Seoul). 매핑 재계산 직후로 둔다(FR-FEL-07)
+	 * @param minMargin 현재 그룹 대비 최소 오차 개선 폭(단계)
+	 */
 	public record Calibration(
+			@NotBlank String schedule,
 			@NotNull @DurationMin(days = 1) Duration lookback,
 			@NotNull @Min(1) Integer minRecords,
 			@NotNull @DecimalMin("0") Double feedbackWeight,
@@ -128,6 +182,12 @@ public record FeelingProperties(
 			@NotNull @DurationMin(seconds = 0) Duration cooldown,
 			@NotNull @DurationMin(seconds = 0) Duration declineCooldown,
 			@NotNull @DurationMin(days = 1) Duration offerTtl) {
+
+		@AssertTrue(message = "feeling.calibration.schedule은 올바른 cron 식이어야 합니다")
+		public boolean isScheduleValid() {
+			return schedule == null || CronExpression.isValidExpression(schedule);
+		}
+
 	}
 
 	public record MyRecords(@NotNull @DurationMin(days = 1) Duration period) {

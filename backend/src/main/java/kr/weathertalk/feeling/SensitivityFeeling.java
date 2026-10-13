@@ -13,13 +13,14 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
  * @param windTag 산출 단계가 제공할 때만
  * @param sampleCount 근거 표본 수(동네 체감·체감 매핑일 때)
  * @param mappingVersion 체감 매핑일 때만
+ * @param mappingLayer 체감 매핑일 때만: 값을 얻은 셀 층(세부/계절 없음/축약)
  * @param weatherBasedTemperatureTag 고정 기준표만으로 계산한 기상값 기준 온도 태그. 기온을 얻지 못하면 null
  * @param derivedAt 산출 시각. 체감 피드백 때 앱이 그대로 돌려보낸다(feeling.feedback.max-shown-age)
  */
 public record SensitivityFeeling(NeighborhoodId neighborhoodId, TemperatureSensitivity temperatureSensitivity,
 		Instant basisTime, TimeKind timeKind, TemperatureTag temperatureTag, HumidityTag humidityTag, WindTag windTag,
-		DerivationSource source, Integer sampleCount, Integer mappingVersion, TemperatureTag weatherBasedTemperatureTag,
-		Instant derivedAt) {
+		DerivationSource source, Integer sampleCount, Integer mappingVersion, MappingLayer mappingLayer,
+		TemperatureTag weatherBasedTemperatureTag, Instant derivedAt) {
 
 	/** 기준 시각이 현재 정시와 같으면 현재, 이후면 미래, 이전이면 과거 (FR-FEL-04 규칙 1). */
 	public enum TimeKind {

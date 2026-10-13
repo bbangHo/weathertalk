@@ -31,7 +31,7 @@ import kr.weathertalk.weather.WeatherApi;
  * 민감도별 체감 산출 (FR-FEL-04, BR-FEL-13). 산출 순서:
  * <ol>
  * <li>동네 체감 — 현재·과거 시각이고 그룹의 온도 표본이 feeling.min-group-records 이상. 습도·바람은 각 범주 표본이 같은 기준 이상일 때만.</li>
- * <li>체감 매핑 — feeling.mapping.enabled일 때만(M6).</li>
+ * <li>체감 매핑 — feeling.mapping.enabled이고 적용 중인 매핑 버전이 있을 때. 세부 → 계절 없음 → 축약 셀 순(FR-FEL-06).</li>
  * <li>고정 기준표 — 그 시각의 기온으로. 습도·바람은 담지 않는다.</li>
  * </ol>
  * 기상값: 현재 = 현재 관측, 미래 = 시간별 예보의 그 시각 칸, 과거 = 과거 관측. 미래는 1단계를 건너뛴다.
@@ -103,26 +103,25 @@ class SensitivityFeelingDeriver {
 						? WindTag.of(group.wind().median()) : null;
 				return Optional.of(new SensitivityFeeling(neighborhoodId, sensitivity, basis.basisTime(), basis.kind(),
 						TemperatureTag.of(group.temperature().median()), humidity, wind,
-						DerivationSource.NEIGHBORHOOD_FEELING, group.temperature().count(), null, weatherBased, now));
+						DerivationSource.NEIGHBORHOOD_FEELING, group.temperature().count(), null, null, weatherBased,
+						now));
 			}
 		}
 
-		if (properties.mapping().enabled()) {
-			Optional<FeelingMappingLookup.Cell> cell = mapping.find(sensitivity, basis.basisTime(),
-					weather.temperature(), weather.humidity(), weather.windSpeed());
-			if (cell.isPresent()) {
-				FeelingMappingLookup.Cell c = cell.get();
-				return Optional.of(new SensitivityFeeling(neighborhoodId, sensitivity, basis.basisTime(), basis.kind(),
-						c.temperature(), c.humidity(), c.wind(), DerivationSource.FEELING_MAPPING, c.sampleCount(),
-						c.mappingVersion(), weatherBased, now));
-			}
+		Optional<FeelingMappingLookup.Cell> cell = mapping.find(sensitivity, basis.basisTime(), weather.temperature(),
+				weather.humidity(), weather.windSpeed());
+		if (cell.isPresent()) {
+			FeelingMappingLookup.Cell c = cell.get();
+			return Optional.of(new SensitivityFeeling(neighborhoodId, sensitivity, basis.basisTime(), basis.kind(),
+					c.temperature(), c.humidity(), c.wind(), DerivationSource.FEELING_MAPPING, c.sampleCount(),
+					c.mappingVersion(), c.layer(), weatherBased, now));
 		}
 
 		if (weatherBased == null) {
 			return Optional.empty(); // 산출 불가
 		}
 		return Optional.of(new SensitivityFeeling(neighborhoodId, sensitivity, basis.basisTime(), basis.kind(),
-				weatherBased, null, null, DerivationSource.REFERENCE_TABLE, null, null, weatherBased, now));
+				weatherBased, null, null, DerivationSource.REFERENCE_TABLE, null, null, null, weatherBased, now));
 	}
 
 	private Basis basis(Instant at, Instant now) {

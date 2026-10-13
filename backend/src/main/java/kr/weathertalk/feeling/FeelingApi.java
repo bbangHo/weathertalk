@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import kr.weathertalk.member.TemperatureSensitivity;
 import kr.weathertalk.shared.Ids.FeelingRecordId;
@@ -13,7 +14,7 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
 /**
  * feeling 모듈의 공개 인터페이스 (contracts.md §2.4). 다른 모듈은 이 타입으로만 feeling 기능을 사용한다.
  * <p>
- * 체감 기록·피드백 쓰기는 앱 요청 명령이라 공개 인터페이스에 두지 않는다. 민감도 보정 제안 조회·거절은 M6에서 추가한다.
+ * 체감 기록·피드백 쓰기와 민감도 보정 제안 수락은 앱 요청 명령이라 공개 인터페이스에 두지 않는다.
  * 시각 인자가 null이면 현재 시각이다. 없는 동네는 NOT_FOUND.
  */
 public interface FeelingApi {
@@ -48,5 +49,16 @@ public interface FeelingApi {
 
 	/** 회원의 체감 기록 목록 조회 + 내 체감 패턴 (FR-FEL-11). */
 	MyFeelingRecords findMyRecords(MemberId memberId);
+
+	/** 민감도 보정 제안 조회 (FR-FEL-08 규칙 1). 유효한 '제안됨' 제안이 없으면 빈 값. 홈·마이페이지 표시용(푸시 없음). */
+	Optional<CalibrationOffer> findCalibrationOffer(MemberId memberId);
+
+	/**
+	 * 민감도 보정 제안 거절 기록 (FR-FEL-08 규칙 3). 거절 후 feeling.calibration.decline-cooldown 동안 다시 판정하지 않는다.
+	 * 이미 거절한 제안이면 그대로 성공한다.
+	 *
+	 * @throws kr.weathertalk.shared.error.DomainException NOT_FOUND(없음·남의 제안), CALIBRATION_OFFER_NOT_ACTIVE
+	 */
+	CalibrationOffer declineCalibrationOffer(MemberId memberId, UUID offerId);
 
 }
