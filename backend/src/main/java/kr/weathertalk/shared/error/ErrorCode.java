@@ -60,6 +60,34 @@ public enum ErrorCode {
 	 */
 	FEEDBACK_TARGET_INVALID(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// ── community ──
+
+	/** 게시글·댓글의 작성자가 아니다(수정·삭제는 작성자 본인만, FR-COM-03·04·09). */
+	NOT_CONTENT_AUTHOR(HttpStatus.FORBIDDEN),
+
+	/** 관리자 전용 명령이다. 작성자 본인이어도 쓸 수 없다(FR-COM-15, ADR 0012). */
+	ADMIN_REQUIRED(HttpStatus.FORBIDDEN),
+
+	/**
+	 * 이미지를 받을 수 없다(FR-COM-01). 응답의 {@code reason}: TYPE_NOT_ALLOWED / TOO_LARGE / UNREADABLE / NOT_UPLOADED.
+	 * 앱은 그 장만 다시 고르거나 올린다.
+	 */
+	IMAGE_REJECTED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	/** 게시글에 붙일 수 없는 이미지다(본인이 올린 미첨부 이미지가 아님, 이미 첨부·정리됨, 장수 초과 — FR-COM-02 규칙 3). */
+	POST_IMAGE_NOT_ATTACHABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	/**
+	 * 체감 기록을 첨부할 수 없다(BR-COM-06). 응답의 {@code reason}: NOT_OWNED / NEIGHBORHOOD_MISMATCH / TOO_OLD.
+	 */
+	FEELING_RECORD_NOT_ATTACHABLE(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	/** 답글을 달 수 없는 댓글이다(답글의 답글, 삭제된 댓글 — FR-COM-08). 응답의 {@code reason}: REPLY_TO_REPLY / PARENT_DELETED. */
+	REPLY_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	/** 본인 게시글에는 좋아요할 수 없다(BR-COM-10). */
+	SELF_LIKE_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// ── home ──
 
 	/**

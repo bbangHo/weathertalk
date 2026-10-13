@@ -271,10 +271,14 @@ community:
     page-size: 30
   image:
     max-file-size: 10MB
-    allowed-types: [image/jpeg, image/png, image/webp, image/heic]
+    # HEIC는 서버가 디코딩할 수 없어(순수 자바 판독기 없음) 뺐다. 앱이 올리기 전에 JPEG로 바꾼다(05 §10 구현 메모).
+    allowed-types: [image/jpeg, image/png, image/webp]
     max-dimension: 2048
     orphan-ttl: 24h
     cleanup-interval: 1h
+    upload-url-ttl: 10m
+    view-url-ttl: 6h
+    jpeg-quality: 0.85
   feeling-attach-window: 3h
   feed:
     page-size: 20
@@ -286,6 +290,18 @@ community:
   idempotency-window: 24h
   admin-deletion:
     reason-max-length: 200
+  # 사진 객체 저장소(SeaweedFS, S3 API) 연결(운영 파라미터 아님). 값은 루트 .env의 S3_* 환경 변수로 받는다.
+  # 주소·키가 비어 있어도 기동은 되고, 사진 업로드는 '일시적으로 사용할 수 없음'으로 응답한다(게시글·피드는 동작).
+  storage:
+    # 백엔드가 접근하는 내부 주소(path-style). 로컬 compose: http://localhost:8333
+    endpoint: ${S3_ENDPOINT:}
+    # 사전 서명 주소의 기준 주소 — 앱이 직접 올리고 받는 주소. 비면 endpoint와 같다.
+    # 서명에 호스트·경로가 들어가므로 프록시는 경로 접두어 없이 전용 호스트로 두고 Host 헤더를 그대로 넘겨야 한다.
+    public-endpoint: ${S3_PUBLIC_ENDPOINT:}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:weathertalk-images}
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
 
 notification:
   cooldown: 3h

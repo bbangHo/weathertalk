@@ -46,6 +46,30 @@ public class IntegrationTestConfiguration {
 		};
 	}
 
+	@Bean
+	ThreadSafeEventRecorder threadSafeEventRecorder() {
+		return new ThreadSafeEventRecorder();
+	}
+
+	/**
+	 * 여러 스레드에서 발행된 이벤트를 모은다. @RecordApplicationEvents(ApplicationEvents)는 테스트 스레드에서 발행된 것만 담아
+	 * 동시 요청 테스트에서는 이걸 쓴다. 발행 즉시(트랜잭션 안) 받으므로 커밋된 발행만 세려면 성공한 요청에서만 발행하는 이벤트에 쓴다.
+	 */
+	public static class ThreadSafeEventRecorder {
+
+		private final Queue<Object> events = new ConcurrentLinkedQueue<>();
+
+		@org.springframework.context.event.EventListener
+		void on(kr.weathertalk.community.PostLiked event) {
+			events.add(event);
+		}
+
+		public <T> java.util.List<T> of(Class<T> type) {
+			return events.stream().filter(type::isInstance).map(type::cast).toList();
+		}
+
+	}
+
 	/** 정해 둔 후보를 먼저 내고, 없으면 무작위 후보를 낸다(닉네임 충돌·재시도 테스트용). */
 	public static class ScriptedNicknameGenerator implements NicknameGenerator {
 

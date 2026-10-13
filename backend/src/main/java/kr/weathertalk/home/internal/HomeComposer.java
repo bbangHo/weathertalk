@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 
 import org.springframework.stereotype.Service;
 
+import kr.weathertalk.community.CommunityApi;
+import kr.weathertalk.community.PostSummary;
 import kr.weathertalk.feeling.FeelingApi;
 import kr.weathertalk.feeling.SensitivityFeeling;
 import kr.weathertalk.feeling.SensitivityFeelings;
@@ -24,6 +26,7 @@ import kr.weathertalk.home.HomeSection;
 import kr.weathertalk.home.HomeView;
 import kr.weathertalk.home.PersonalBasis;
 import kr.weathertalk.home.ViewingNeighborhood;
+import kr.weathertalk.home.internal.config.HomeProperties;
 import kr.weathertalk.member.MemberApi;
 import kr.weathertalk.member.MemberProfile;
 import kr.weathertalk.member.Requester;
@@ -46,7 +49,7 @@ import kr.weathertalk.weather.PrecipitationType;
 import kr.weathertalk.weather.WeatherApi;
 
 /**
- * 홈 조합 (07 §1): 보는 동네 + 날씨 섹션 + 민감도별 체감 3그룹·피드백 버튼 상태·옷 추천·어제와 비교·외출 시각 기준.
+ * 홈 조합 (07 §1): 보는 동네 + 날씨 섹션 + 민감도별 체감 3그룹·피드백 버튼 상태·옷 추천·어제와 비교·외출 시각 기준 + 동네 인기글.
  * 규칙 없음 원칙(07 §1.5) — 호출·조합·섹션 상태·요청자에 따른 섹션 선택·시간 제한만 한다. 산출 출처·비교 가능 여부·옷차림은 소유 모듈 값 그대로다.
  * 옷 추천·어제 비교·외출 시각 기준은 민감도별 체감이 실패하면 조회하지 않는다(07 §1.4-3).
  */
@@ -58,17 +61,22 @@ class HomeComposer implements HomeApi {
 	private final MemberApi memberApi;
 	private final FeelingApi feelingApi;
 	private final OutfitApi outfitApi;
+	private final CommunityApi communityApi;
 	private final SectionRunner sections;
+	private final HomeProperties properties;
 	private final Clock clock;
 
 	HomeComposer(NeighborhoodApi neighborhoodApi, WeatherApi weatherApi, MemberApi memberApi, FeelingApi feelingApi,
-			OutfitApi outfitApi, SectionRunner sections, Clock clock) {
+			OutfitApi outfitApi, CommunityApi communityApi, SectionRunner sections, HomeProperties properties,
+			Clock clock) {
 		this.neighborhoodApi = neighborhoodApi;
 		this.weatherApi = weatherApi;
 		this.memberApi = memberApi;
 		this.feelingApi = feelingApi;
 		this.outfitApi = outfitApi;
+		this.communityApi = communityApi;
 		this.sections = sections;
+		this.properties = properties;
 		this.clock = clock;
 	}
 
@@ -115,13 +123,19 @@ class HomeComposer implements HomeApi {
 				: sections.after("departure-outfit", feelings,
 						f -> departure(id, basis, departureTimes, SectionRunner.join(hourly).data()),
 						d -> d.recommendation() == null);
+		CompletableFuture<HomeSection<List<PostSummary>>> popular = sections.start("popular-posts",
+				() -> communityApi.findPopularPosts(id, requester)
+					.stream()
+					.limit(properties.popularPostsCount())
+					.toList(),
+				List::isEmpty);
 
 		return new HomeView(new ViewingNeighborhood(id.value(), neighborhood.sidoName(), neighborhood.sigunguName(),
 				neighborhood.eupmyeondongName(), neighborhood.fullName(), neighborhood.shortName(), isCurrent),
 				SectionRunner.join(currentWeather), SectionRunner.join(hourly), SectionRunner.join(daily), personal,
 				SectionRunner.join(feelings), feedback == null ? null : SectionRunner.join(feedback),
 				SectionRunner.join(outfit), SectionRunner.join(yesterday),
-				departure == null ? null : SectionRunner.join(departure));
+				departure == null ? null : SectionRunner.join(departure), SectionRunner.join(popular));
 	}
 
 	/** 내 그룹 선택(07 §1.3): 회원은 회원 민감도, 비회원은 기기 민감도, 없으면 '보통' 기준 + 고르기 안내. */

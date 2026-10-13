@@ -4,6 +4,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(CommunityProperties.class)
+@EnableConfigurationProperties({ CommunityProperties.class, CommunityStorageProperties.class })
 public class CommunityPropertiesConfig {
 }

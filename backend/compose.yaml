@@ -12,3 +12,28 @@ services:
     image: 'redis:7.4'
     ports:
       - '6379'
+  # 커뮤니티 사진 객체 저장소(S3 API 게이트웨이 포함, 결정 P6). 백엔드는 S3_ENDPOINT=http://localhost:8333 으로 접근한다.
+  # Boot가 연결 정보를 자동으로 넣어 주지 않는 서비스라 포트를 고정한다(앱이 사전 서명 주소로 직접 올리므로 주소가 바뀌면 안 된다).
+  # 접근 키는 루트 .env의 S3_ACCESS_KEY·S3_SECRET_KEY를 SeaweedFS 관리자 신원(AWS_* 환경 변수)으로 넘긴다.
+  # 키가 비어 있으면 SeaweedFS는 인증 없이 열리므로, 로컬에서도 키를 채워 두는 것을 권장한다(.env.example).
+  seaweedfs:
+    image: 'chrislusf/seaweedfs:4.47'
+    env_file:
+      - path: ../.env
+        required: false
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$$S3_SECRET_KEY" exec /entrypoint.sh "$$@"'
+      - seaweedfs
+    command: [ 'server', '-dir=/data', '-s3', '-master.volumeSizeLimitMB=1024', '-volume.max=0' ]
+    ports:
+      - '8333:8333'
+    volumes:
+      - 'seaweedfs-data:/data'
+    labels:
+      # Boot Docker Compose 지원이 모르는 이미지라 연결 정보 생성 대상에서 뺀다
+      org.springframework.boot.ignore: true
+
+volumes:
+  seaweedfs-data:
