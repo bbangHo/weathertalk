@@ -31,7 +31,7 @@ import kr.weathertalk.shared.idempotency.IdempotencyKey;
 /**
  * 현재 요청자 해석 리졸버와 공통 가드(가입 필요·약관 재동의 필요·인증 실패), 요청 식별자 헤더 해석 (contracts.md §2.1, §4).
  */
-@WebMvcTest
+@WebMvcTest(RequesterArgumentResolverTests.GuardedController.class)
 @Import(RequesterArgumentResolverTests.GuardedController.class)
 class RequesterArgumentResolverTests {
 

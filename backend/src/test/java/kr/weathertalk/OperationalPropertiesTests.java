@@ -74,7 +74,7 @@ class OperationalPropertiesTests {
 
 	@Test
 	void prodProfileDisablesTestNotifications() {
-		runner.withPropertyValues("spring.profiles.active=prod")
+		runner.withPropertyValues("spring.profiles.active=prod", "member.token.secret=operations-provided-secret-0123456789abcdef")
 			.run(context -> assertThat(context.getBean(NotificationProperties.class).test().enabled()).isFalse());
 	}
 

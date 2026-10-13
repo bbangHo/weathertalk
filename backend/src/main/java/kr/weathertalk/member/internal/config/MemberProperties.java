@@ -9,7 +9,9 @@ import org.springframework.validation.annotation.Validated;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * member 운영 파라미터 (01-member.md §7).
@@ -32,7 +34,8 @@ public record MemberProperties(
 		@NotNull @DurationMin(seconds = 0) Duration refreshReuseGrace,
 		@NotNull @DurationMin(minutes = 1) Duration signupTicketTtl,
 		@NotNull @Valid Nickname nickname,
-		@NotNull @Valid ExternalUnlink externalUnlink) {
+		@NotNull @Valid ExternalUnlink externalUnlink,
+		@NotNull @Valid Token token) {
 
 	@AssertTrue(message = "갱신 토큰 수명은 접근 토큰 수명보다 길어야 합니다")
 	public boolean isRefreshLongerThanAccess() {
@@ -56,6 +59,19 @@ public record MemberProperties(
 			@NotNull @Min(1) Integer maxAttempts,
 			@NotNull @DurationMin(seconds = 1) Duration backoff,
 			@NotNull @DurationMin(days = 1) Duration retention) {
+	}
+
+	/**
+	 * @param secret 접근·갱신 토큰 서명 비밀값. 종류별 서명 키는 이 값에서 파생한다. 운영(prod)은 환경 변수 MEMBER_TOKEN_SECRET 필수 —
+	 *        비어 있으면 기동이 실패한다. local·test는 application.yml의 개발용 기본값을 쓴다.
+	 */
+	public record Token(@NotBlank @Size(min = 32, message = "토큰 서명 비밀값은 32자 이상이어야 합니다") String secret) {
+
+		@Override
+		public String toString() {
+			return "Token[secret=***]";
+		}
+
 	}
 
 }

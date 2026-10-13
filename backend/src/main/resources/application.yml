@@ -59,6 +59,10 @@ member:
     max-attempts: 8
     backoff: 1m
     retention: 30d
+  token:
+    # 접근·갱신 토큰 서명 비밀값(32자 이상). 운영은 환경 변수 MEMBER_TOKEN_SECRET 필수(prod 프로파일은 기본값 없음 → 비면 기동 실패).
+    # 아래 기본값은 local·test 전용 개발 키다. 운영·스테이징에 쓰지 않는다.
+    secret: ${MEMBER_TOKEN_SECRET:dev-only-insecure-token-secret-do-not-use-in-prod}
 
 neighborhood:
   max-interest: 5
@@ -260,7 +264,21 @@ spring:
   docker:
     compose:
       enabled: false
+member:
+  token:
+    # 운영은 개발용 기본 키를 쓰지 않는다. MEMBER_TOKEN_SECRET 이 없으면 빈 값 → 검증 실패로 기동 중단.
+    secret: ${MEMBER_TOKEN_SECRET:}
 notification:
   test:
     # 개발용 기능은 운영 프로파일에서 등록하지 않는다 (contracts.md §4)
     enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: staging
+member:
+  token:
+    # 스테이징도 개발용 기본 키를 쓰지 않는다 (개발 전용 로그인은 스테이징에 등록되므로 키 유출 시 위조 위험이 더 크다).
+    secret: ${MEMBER_TOKEN_SECRET:}

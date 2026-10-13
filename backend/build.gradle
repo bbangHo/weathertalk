@@ -30,6 +30,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 
+	// 접근·갱신 토큰 서명(HMAC). Spring Security가 내부에서 쓰는 JOSE 구현이고(Boot 4 BOM 미관리라 버전 명시),
+	// M7 소셜 로그인의 애플·구글 ID 토큰(JWKS 서명) 검증도 같은 라이브러리로 할 수 있다. Spring Security 전체는 필터·세션 모델이 맞지 않아 들이지 않는다.
+	implementation 'com.nimbusds:nimbus-jose-jwt:10.9.1'
+
 	// 정기 작업 잠금: 다중 인스턴스에서 회차당 한 곳만 실행 (contracts.md §4)
 	implementation 'net.javacrumbs.shedlock:shedlock-spring:7.10.1'
 	implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:7.10.1'
