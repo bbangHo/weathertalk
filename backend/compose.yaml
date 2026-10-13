@@ -1,0 +1,14 @@
+# 로컬 개발용. `./gradlew bootRun` 시 Spring Boot Docker Compose 지원이 자동으로 띄운다.
+services:
+  postgres:
+    image: 'postgis/postgis:16-3.4'
+    environment:
+      - 'POSTGRES_DB=weathertalk'
+      - 'POSTGRES_USER=weathertalk'
+      - 'POSTGRES_PASSWORD=weathertalk'
+    ports:
+      - '5432'
+  redis:
+    image: 'redis:7.4'
+    ports:
+      - '6379'
