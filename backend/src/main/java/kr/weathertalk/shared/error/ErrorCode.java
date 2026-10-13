@@ -51,6 +51,14 @@ public enum ErrorCode {
 	/** 관심 동네 최대 개수를 넘는다(BR-NBR-08). */
 	INTEREST_NEIGHBORHOOD_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	// ── weather ──
+
+	/** 회원별 하루 현장 제보 한도(weather.field-report.daily-limit)를 넘었다. 취소한 제보도 센다(FR-WEA-04·14). */
+	FIELD_REPORT_DAILY_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS),
+
+	/** 현장 제보 취소 기한(제보 시각 + weather.field-report.cancel-window)이 지났다(FR-WEA-14). */
+	FIELD_REPORT_CANCEL_WINDOW_PASSED(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// ── feeling ──
 
 	/**

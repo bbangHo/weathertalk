@@ -64,7 +64,7 @@ public final class WeatherStubs {
 		jdbc.sql("""
 				TRUNCATE weather_collect_state, weather_observation, weather_short_term_slot, weather_short_term_issue,
 				    weather_mid_land, weather_mid_temperature, weather_air_measurement, weather_air_station_mapping,
-				    weather_uv_index
+				    weather_uv_index, weather_field_report, weather_field_report_precip_publication, weather_precip_episode
 				""").update();
 		Set<String> keys = redis.keys("weather:collect:*");
 		if (keys != null && !keys.isEmpty()) {

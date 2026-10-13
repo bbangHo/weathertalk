@@ -64,6 +64,20 @@ public class IntegrationTestConfiguration {
 			events.add(event);
 		}
 
+		@org.springframework.context.event.EventListener
+		void on(kr.weathertalk.weather.FieldReportPrecipitationReached event) {
+			events.add(event);
+		}
+
+		@org.springframework.context.event.EventListener
+		void on(kr.weathertalk.weather.PrecipitationStartForecasted event) {
+			events.add(event);
+		}
+
+		public void clear() {
+			events.clear();
+		}
+
 		public <T> java.util.List<T> of(Class<T> type) {
 			return events.stream().filter(type::isInstance).map(type::cast).toList();
 		}

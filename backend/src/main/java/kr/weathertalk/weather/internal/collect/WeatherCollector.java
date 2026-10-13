@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import kr.weathertalk.neighborhood.ForecastGrid;
 import kr.weathertalk.weather.internal.collect.CollectionCoordinator.Outcome;
+import kr.weathertalk.weather.internal.precip.PrecipStartJudge;
 import kr.weathertalk.weather.internal.source.AirKoreaSource;
 import kr.weathertalk.weather.internal.source.KmaSource;
 import kr.weathertalk.weather.internal.source.SourceData;
@@ -20,6 +21,7 @@ import kr.weathertalk.weather.internal.store.UvStore;
 /**
  * 데이터 종류별 수집 (FR-WEA-06·07·08). 모든 수집은 {@link CollectionCoordinator}의 한 경로를 지나므로
  * 요청 시 수집과 사전 갱신이 서로 중복되지 않고, 결과는 조회·판정이 함께 쓰는 하나의 사본이다.
+ * 단기예보·실황을 새로 받으면(요청 시 수집이든 사전 갱신이든) 그 격자의 강수 시작 판정을 한다(FR-WEA-06 4단계, FR-WEA-09).
  */
 @Component
 public class WeatherCollector {
@@ -32,11 +34,12 @@ public class WeatherCollector {
 	private final MidTermStore midTerms;
 	private final AirStore air;
 	private final UvStore uv;
+	private final PrecipStartJudge precipStart;
 	private final Clock clock;
 
 	public WeatherCollector(CollectionCoordinator coordinator, KmaSource kma, AirKoreaSource airKorea,
 			ObservationStore observations, ShortTermStore shortTerms, MidTermStore midTerms, AirStore air, UvStore uv,
-			Clock clock) {
+			PrecipStartJudge precipStart, Clock clock) {
 		this.coordinator = coordinator;
 		this.kma = kma;
 		this.airKorea = airKorea;
@@ -45,6 +48,7 @@ public class WeatherCollector {
 		this.midTerms = midTerms;
 		this.air = air;
 		this.uv = uv;
+		this.precipStart = precipStart;
 		this.clock = clock;
 	}
 
@@ -53,15 +57,25 @@ public class WeatherCollector {
 	}
 
 	public Outcome ensureObservation(ForecastGrid grid, boolean preRefresh) {
-		return coordinator.ensure(CollectionKind.OBSERVATION, gridKey(grid), () -> observations.latestObservedAt(grid),
+		return judged(grid, coordinator.ensure(CollectionKind.OBSERVATION, gridKey(grid),
+				() -> observations.latestObservedAt(grid),
 				issuedAt -> observations.save(grid, kma.fetchObservation(grid, issuedAt), clock.instant()),
-				preRefresh);
+				preRefresh));
 	}
 
 	public Outcome ensureShortTerm(ForecastGrid grid, boolean preRefresh) {
-		return coordinator.ensure(CollectionKind.SHORT_TERM, gridKey(grid), () -> shortTerms.latestIssuedAt(grid),
+		return judged(grid, coordinator.ensure(CollectionKind.SHORT_TERM, gridKey(grid),
+				() -> shortTerms.latestIssuedAt(grid),
 				issuedAt -> shortTerms.replace(grid, issuedAt, kma.fetchShortTerm(grid, issuedAt), clock.instant()),
-				preRefresh);
+				preRefresh));
+	}
+
+	/** 새 발표분·관측을 받았을 때만 강수 시작 판정. 이미 있거나 실패면 판정할 새 정보가 없다. */
+	private Outcome judged(ForecastGrid grid, Outcome outcome) {
+		if (outcome == Outcome.COLLECTED || outcome == Outcome.SUBSTITUTED) {
+			precipStart.judgeAfterCollection(grid);
+		}
+		return outcome;
 	}
 
 	public Outcome ensureMidLand(String regionId, boolean preRefresh) {

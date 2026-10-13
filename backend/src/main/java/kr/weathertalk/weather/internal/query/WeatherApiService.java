@@ -4,23 +4,29 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
+import kr.weathertalk.shared.Ids.MemberId;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
 import kr.weathertalk.weather.CurrentObservation;
 import kr.weathertalk.weather.DailyForecast;
+import kr.weathertalk.weather.FieldReportResult;
+import kr.weathertalk.weather.FieldReportStatus;
+import kr.weathertalk.weather.ForecastDivergence;
 import kr.weathertalk.weather.HourlyForecast;
 import kr.weathertalk.weather.WeatherApi;
 import kr.weathertalk.weather.internal.config.WeatherProperties;
 import kr.weathertalk.weather.internal.conversion.FeelsLikeCalculator;
+import kr.weathertalk.weather.internal.fieldreport.FieldReportService;
 
 /**
- * {@link WeatherApi} 구현 (FR-WEA-01~03, 13, BR-WEA-12). 결과에는 동네 ID만 담는다(BR-WEA-21).
+ * {@link WeatherApi} 구현 (FR-WEA-01~03, 05, 12~14, BR-WEA-12). 결과에는 동네 ID만 담는다(BR-WEA-21).
  */
 @Service
 class WeatherApiService implements WeatherApi {
@@ -29,11 +35,16 @@ class WeatherApiService implements WeatherApi {
 	private final ObservationAssembler observations;
 	private final ForecastAssembler forecasts;
 	private final FeelsLikeCalculator feelsLike;
+	private final FieldReportService fieldReports;
+	private final DivergenceJudge divergence;
 	private final WeatherProperties properties;
 	private final Clock clock;
 
 	WeatherApiService(NeighborhoodApi neighborhoods, ObservationAssembler observations, ForecastAssembler forecasts,
-			FeelsLikeCalculator feelsLike, WeatherProperties properties, Clock clock) {
+			FeelsLikeCalculator feelsLike, FieldReportService fieldReports, DivergenceJudge divergence,
+			WeatherProperties properties, Clock clock) {
+		this.fieldReports = fieldReports;
+		this.divergence = divergence;
 		this.neighborhoods = neighborhoods;
 		this.observations = observations;
 		this.forecasts = forecasts;
@@ -73,6 +84,21 @@ class WeatherApiService implements WeatherApi {
 	@Override
 	public Optional<Double> calculateFeelsLike(Double temperature, Double humidity, Double windSpeed, LocalDate date) {
 		return feelsLike.calculate(temperature, humidity, windSpeed, date == null ? null : date.getMonth());
+	}
+
+	@Override
+	public FieldReportResult cancelFieldReport(MemberId memberId, UUID reportId) {
+		return fieldReports.cancel(memberId, reportId);
+	}
+
+	@Override
+	public FieldReportStatus findFieldReportStatus(NeighborhoodId neighborhoodId, MemberId requesterId) {
+		return fieldReports.status(neighborhood(neighborhoodId).id(), requesterId);
+	}
+
+	@Override
+	public ForecastDivergence findForecastDivergence(NeighborhoodId neighborhoodId) {
+		return divergence.judge(neighborhood(neighborhoodId));
 	}
 
 	private Neighborhood neighborhood(NeighborhoodId id) {
