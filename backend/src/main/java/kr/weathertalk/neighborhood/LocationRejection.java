@@ -14,7 +14,7 @@ public enum LocationRejection {
 	/** 정확도가 neighborhood.max-accuracy-for-write보다 나쁘다. */
 	ACCURACY_TOO_LOW,
 
-	/** 어느 유효 동네에도 속하지 않는다(바다·국외). */
+	/** 어느 유효 동네에도 속하지 않는다(경계 밖이고 가장 가까운 대표점도 최대 거리 밖 — 바다 위·국외). */
 	OUTSIDE_SERVICE_AREA
 
 }

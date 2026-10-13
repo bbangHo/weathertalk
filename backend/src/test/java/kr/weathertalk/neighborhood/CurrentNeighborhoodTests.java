@@ -5,8 +5,8 @@ import static kr.weathertalk.neighborhood.NeighborhoodTestData.INSIDE_N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N2;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N7;
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.ON_OUTER_EDGE_N2;
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.ON_SHARED_EDGE_N1_N2;
+import static kr.weathertalk.neighborhood.NeighborhoodTestData.NEAR_N2;
+import static kr.weathertalk.neighborhood.NeighborhoodTestData.EQUIDISTANT_N1_N2;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.location;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -84,21 +84,33 @@ class CurrentNeighborhoodTests {
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM nbr_current_neighborhood", Integer.class)).isEqualTo(before);
 	}
 
-	/** 경계선 위 좌표도 판정되며, 두 동네의 공유 경계선 위는 코드가 작은 동네 하나에만 귀속된다(02 §3.1 불변식). */
+	/**
+	 * 경계가 없는 동네는 가장 가까운 대표점으로 판정한다(ADR 0016). 두 대표점에서 같은 거리면 코드가 작은 동네 하나에만
+	 * 귀속된다(02 §3.1 불변식).
+	 */
 	@Test
-	void pointsOnBoundaryBelongToExactlyOneNeighborhood() {
-		assertThat(neighborhoodApi.locate(ON_SHARED_EDGE_N1_N2)).map(Neighborhood::id).contains(N1);
-		assertThat(neighborhoodApi.locate(ON_OUTER_EDGE_N2)).map(Neighborhood::id).contains(N2);
+	void locatesNearestRepresentativePointAndBreaksTiesBySmallerCode() {
+		assertThat(neighborhoodApi.locate(EQUIDISTANT_N1_N2)).map(Neighborhood::id).contains(N1);
+		assertThat(neighborhoodApi.locate(NEAR_N2)).map(Neighborhood::id).contains(N2);
+	}
+
+	/** neighborhood.max-nearest-distance(20km) 안이면 가장 가까운 동네, 밖이면 판정 불가. */
+	@Test
+	void nearestRepresentativePointBeyondMaxDistanceIsNotResolvable() {
+		// N7 대표점(35.105, 129.005)에서 북쪽으로 위도 0.15°(약 16.6km) / 0.2°(약 22.2km)
+		assertThat(neighborhoodApi.locate(location(35.255, 129.005, 10.0))).map(Neighborhood::id).contains(N7);
+		assertThat(neighborhoodApi.locate(location(35.305, 129.005, 10.0))).isEmpty();
+		assertThat(neighborhoodApi.confirmCurrentNeighborhood(MemberId.random(), location(35.305, 129.005, 10.0)))
+			.isEqualTo(new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.OUTSIDE_SERVICE_AREA));
 	}
 
 	@Test
-	void forecastGridComesFromTableOrIsComputedFromRepresentativePoint() {
+	void representativePointAndForecastGridComeFromDataset() {
 		Neighborhood n1 = neighborhoodApi.findNeighborhood(N1).orElseThrow();
 		Neighborhood n7 = neighborhoodApi.findNeighborhood(N7).orElseThrow();
 
-		// 대표 좌표는 경계 안의 점이다.
-		assertThat(n1.representativePoint().latitude()).isBetween(37.500, 37.510);
-		assertThat(n1.representativePoint().longitude()).isBetween(127.000, 127.010);
+		assertThat(n1.representativePoint()).isEqualTo(new GeoPoint(37.505, 127.005));
+		// 파일에 격자가 비어 있으면 대표 좌표로 계산, 있으면 파일 값(계산식과 달라도) 그대로
 		assertThat(n1.forecastGrid()).isEqualTo(ForecastGridConverter
 			.toGrid(n1.representativePoint().latitude(), n1.representativePoint().longitude()));
 		assertThat(n7.forecastGrid()).isEqualTo(new ForecastGrid(98, 76));
@@ -123,27 +135,27 @@ class CurrentNeighborhoodTests {
 
 		// 같은 동네 재확정: 확정 시각만 갱신, 이벤트 없음
 		clock.advance(Duration.ofMinutes(3));
-		neighborhoodApi.confirmCurrentNeighborhood(member, ON_SHARED_EDGE_N1_N2).orElseThrow();
+		neighborhoodApi.confirmCurrentNeighborhood(member, EQUIDISTANT_N1_N2).orElseThrow();
 		assertThat(neighborhoodApi.findCurrentNeighborhood(member).orElseThrow().confirmedAt())
 			.isEqualTo(MutableClock.BASE.plus(Duration.ofMinutes(3)));
 		assertThat(events.stream(CurrentNeighborhoodChanged.class).filter(e -> e.memberId().equals(member))).hasSize(1);
 
 		// 다른 동네로 이동
-		neighborhoodApi.confirmCurrentNeighborhood(member, ON_OUTER_EDGE_N2).orElseThrow();
+		neighborhoodApi.confirmCurrentNeighborhood(member, NEAR_N2).orElseThrow();
 		assertThat(events.stream(CurrentNeighborhoodChanged.class).filter(e -> e.memberId().equals(member))).hasSize(2);
 	}
 
 	@Test
-	void confirmOnBoundaryIsAccepted() {
+	void confirmEquidistantPointIsAccepted() {
 		MemberId member = MemberId.random();
 
-		assertThat(neighborhoodApi.confirmCurrentNeighborhood(member, ON_SHARED_EDGE_N1_N2).orElseThrow().id())
+		assertThat(neighborhoodApi.confirmCurrentNeighborhood(member, EQUIDISTANT_N1_N2).orElseThrow().id())
 			.isEqualTo(N1);
 	}
 
 	@ParameterizedTest(name = "{0}")
 	@CsvSource(nullValues = "null", value = {
-			"경계 밖(바다), 37.0, 125.5, 20, OUTSIDE_SERVICE_AREA",
+			"최대 거리 밖(바다), 37.0, 125.5, 20, OUTSIDE_SERVICE_AREA",
 			"정확도 기준 초과, 37.505, 127.005, 500.1, ACCURACY_TOO_LOW",
 			"정확도 없음, 37.505, 127.005, null, LOCATION_MISSING",
 			"위도 범위 밖, 91.0, 127.005, 20, LOCATION_INVALID",

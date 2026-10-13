@@ -64,7 +64,7 @@ public class CurrentNeighborhoodService {
 			throw new DomainException(ErrorCode.INVALID_REQUEST, "좌표가 없거나 올바르지 않습니다.",
 					Map.of("reason", rejection.name()));
 		}
-		return neighborhoods.locate(location.latitude(), location.longitude());
+		return neighborhoods.locate(location.latitude(), location.longitude(), properties.maxNearestDistance());
 	}
 
 	/** FR-NBR-03: 쓰기 직전 확정. 정확도 기준 미달·판정 불가는 거부 사유로 돌려준다. */
@@ -77,7 +77,8 @@ public class CurrentNeighborhoodService {
 		if (rejection != null) {
 			return new CurrentNeighborhoodConfirmation.Rejected(rejection);
 		}
-		Optional<Neighborhood> located = neighborhoods.locate(location.latitude(), location.longitude());
+		Optional<Neighborhood> located = neighborhoods.locate(location.latitude(), location.longitude(),
+				properties.maxNearestDistance());
 		if (located.isEmpty()) {
 			return new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.OUTSIDE_SERVICE_AREA);
 		}

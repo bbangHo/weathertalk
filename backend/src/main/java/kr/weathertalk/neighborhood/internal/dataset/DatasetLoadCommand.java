@@ -20,12 +20,12 @@ import org.springframework.stereotype.Component;
  *
  * <pre>
  * ./gradlew bootRun --args='--spring.main.web-application-type=none \
- *     --neighborhood.dataset.version=2026-10 \
- *     --neighborhood.dataset.codes=/data/codes.csv \
- *     --neighborhood.dataset.boundaries=/data/boundaries.geojson'
+ *     --neighborhood.dataset.version=KMA-2607 \
+ *     --neighborhood.dataset.codes=src/main/resources/neighborhood/kma/kma-administrative-dong-2607.csv'
+ *     [--neighborhood.dataset.boundaries=/data/boundaries.geojson]   (선택: 경계가 있으면 포함 검사 우선)
  * </pre>
  *
- * 비교 보고서(신설·변경·폐지 코드 목록)를 로그로 남긴다. 운영 적재는 이 보고서를 확인한 뒤 진행한다(02 §3.2).
+ * 비교 보고서(신설·변경·폐지 코드 목록, 격자 검증 경고)를 로그로 남긴다. 운영 적재는 이 보고서를 확인한 뒤 진행한다(02 §3.2).
  */
 @Component
 class DatasetLoadCommand implements ApplicationRunner {
@@ -51,15 +51,29 @@ class DatasetLoadCommand implements ApplicationRunner {
 		}
 		String version = single(args, VERSION);
 		DatasetLoadReport report;
-		try (Reader codes = Files.newBufferedReader(Path.of(single(args, CODES)), StandardCharsets.UTF_8);
-				Reader boundaries = Files.newBufferedReader(Path.of(single(args, BOUNDARIES)), StandardCharsets.UTF_8)) {
-			report = loader.load(version, codes, boundaries);
+		try (Reader codes = Files.newBufferedReader(Path.of(single(args, CODES)), StandardCharsets.UTF_8)) {
+			if (args.containsOption(BOUNDARIES)) {
+				try (Reader boundaries = Files.newBufferedReader(Path.of(single(args, BOUNDARIES)),
+						StandardCharsets.UTF_8)) {
+					report = loader.load(version, codes, boundaries);
+				}
+			}
+			else {
+				report = loader.load(version, codes);
+			}
 		}
+		log(report);
+		System.exit(SpringApplication.exit(context, () -> 0));
+	}
+
+	static void log(DatasetLoadReport report) {
 		log.info("동네 기준 데이터 적재 완료: {}", report.summary());
 		log.info("신설: {}", report.added());
 		log.info("변경: {}", report.changed());
 		log.info("폐지: {}", report.retired());
-		System.exit(SpringApplication.exit(context, () -> 0));
+		if (!report.gridWarnings().isEmpty()) {
+			log.warn("예보 격자 검증 경고(파일 값으로 적재함) {}건: {}", report.gridWarnings().size(), report.gridWarnings());
+		}
 	}
 
 	private static String single(ApplicationArguments args, String name) {

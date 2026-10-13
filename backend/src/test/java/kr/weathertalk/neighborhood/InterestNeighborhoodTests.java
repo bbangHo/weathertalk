@@ -157,23 +157,16 @@ class InterestNeighborhoodTests {
 		assertThat(found.get(N7).eupmyeondongName()).isEqualTo("바닷가동");
 	}
 
-	/** 폐지는 적재 버전으로만 일어난다: N6(또는 N7)만 뺀 버전을 적재한다. @AfterEach에서 기준 데이터로 되돌린다. */
+	/** 폐지는 적재 버전으로만 일어난다: 해당 동네만 뺀 버전을 적재한다. @AfterEach에서 기준 데이터로 되돌린다. */
 	private void retire(NeighborhoodId id) {
 		StringBuilder codes = new StringBuilder();
-		StringBuilder features = new StringBuilder();
-		try (var csv = new java.io.BufferedReader(NeighborhoodTestData.resource("neighborhood/SAMPLE-test-codes.csv"));
-				var geo = new java.io.BufferedReader(
-						NeighborhoodTestData.resource("neighborhood/SAMPLE-test-boundaries.geojson"))) {
+		try (var csv = new java.io.BufferedReader(NeighborhoodTestData.resource(NeighborhoodTestData.CODES))) {
 			csv.lines().filter(l -> !l.startsWith(id.value())).forEach(l -> codes.append(l).append('\n'));
-			List<String> lines = geo.lines().filter(l -> !l.contains("\"" + id.value() + "\"")).toList();
-			String joined = String.join("\n", lines).replaceAll(",\\s*\\n\\s*]", "\n  ]");
-			features.append(joined);
 		}
 		catch (java.io.IOException e) {
 			throw new java.io.UncheckedIOException(e);
 		}
-		loader.load("SAMPLE-test-without-" + id.value(), NeighborhoodTestData.text(codes.toString()),
-				NeighborhoodTestData.text(features.toString()));
+		loader.load("SAMPLE-test-without-" + id.value(), NeighborhoodTestData.text(codes.toString()));
 	}
 
 	private ResultActions add(NeighborhoodId id) throws Exception {

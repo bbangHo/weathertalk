@@ -19,7 +19,8 @@ public interface NeighborhoodApi {
 	/**
 	 * 좌표로 동네 판정 (FR-NBR-01). 조회용이며 아무것도 저장하지 않는다.
 	 *
-	 * @return 좌표가 속한 유효 동네. 바다·국외 등 어느 동네에도 속하지 않으면 빈 값
+	 * @return 좌표가 속한 유효 동네(경계가 없으면 가장 가까운 대표점의 동네, ADR 0016). 가장 가까운 대표점도
+	 *         neighborhood.max-nearest-distance보다 멀면(바다 위·국외) 빈 값
 	 * @throws kr.weathertalk.shared.error.DomainException INVALID_REQUEST — 좌표가 없거나 범위를 벗어남
 	 */
 	Optional<Neighborhood> locate(DeviceLocation location);

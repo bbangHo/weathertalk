@@ -140,7 +140,7 @@ class ForecastAssembler {
 			.collect(Collectors.groupingBy(s -> s.forecastAt().atZone(TimeConfig.SEOUL).toLocalDate(), TreeMap::new,
 					Collectors.toList()));
 
-		Optional<MidTermRegions.MidTermRegion> region = regions.find(neighborhood.id());
+		Optional<MidTermRegions.MidTermRegion> region = regions.find(neighborhood);
 		MidPart land = region.map(r -> midLand(r.landRegionId(), now)).orElse(MidPart.NONE);
 		MidPart temperature = region.map(r -> midTemperature(r.temperatureRegionId(), now)).orElse(MidPart.NONE);
 		Map<LocalDate, SourceData.MidLandDay> landDays = land.landDays();

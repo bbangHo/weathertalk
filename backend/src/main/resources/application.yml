@@ -1,6 +1,10 @@
 spring:
   application:
     name: weathertalk
+  config:
+    # 비밀값·외부 키는 환경 변수로 받는다. 로컬 개발은 저장소 루트(또는 backend)의 .env(git 제외)를 읽는다 — 변수 목록은 루트 .env.example.
+    # bootRun·test의 작업 디렉터리는 backend라 ../.env가 저장소 루트다. 같은 이름의 OS 환경 변수가 있으면 그쪽이 이긴다.
+    import: "optional:file:../.env[.properties],optional:file:.env[.properties]"
   jpa:
     open-in-view: false
     hibernate:
@@ -71,6 +75,9 @@ neighborhood:
   active-member-window: 30d
   search-max-results: 20
   search-min-length: 1
+  # 최근접 대표점 판정의 최대 거리(미터). 넓은 산간 면(수백 km²)의 외곽에서도 가장 가까운 대표점은 대개 15km 안쪽이라
+  # 여유를 둔 값. 연안 바다 일부도 가까운 동네로 판정되는 것은 감수한다(ADR 0016). 이보다 멀면 판정 불가(바다 위·국외).
+  max-nearest-distance: 20000
 
 weather:
   mid-term-days: 10
@@ -280,6 +287,14 @@ spring:
   docker:
     compose:
       enabled: false
+  # 운영 DB·Redis 접속은 환경 변수로 받는다(없으면 연결 실패로 기동이 멈춘다). 로컬은 Docker Compose 자동 연결, 테스트는 Testcontainers 연결이 우선한다.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      url: ${REDIS_URL}
 member:
   token:
     # 운영은 개발용 기본 키를 쓰지 않는다. MEMBER_TOKEN_SECRET 이 없으면 빈 값 → 검증 실패로 기동 중단.
@@ -294,6 +309,14 @@ spring:
   config:
     activate:
       on-profile: staging
+  # 운영 DB·Redis 접속은 환경 변수로 받는다(없으면 연결 실패로 기동이 멈춘다). 로컬은 Docker Compose 자동 연결, 테스트는 Testcontainers 연결이 우선한다.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      url: ${REDIS_URL}
 member:
   token:
     # 스테이징도 개발용 기본 키를 쓰지 않는다 (개발 전용 로그인은 스테이징에 등록되므로 키 유출 시 위조 위험이 더 크다).

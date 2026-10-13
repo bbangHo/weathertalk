@@ -16,7 +16,7 @@ import kr.weathertalk.neighborhood.NeighborhoodStatus;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 
 /**
- * 동네 기준 데이터 조회. 경계 포함 검사는 PostGIS 함수로 DB 안에서 한다.
+ * 동네 기준 데이터 조회. 동네 판정(경계 포함 검사·최근접 대표점)은 PostGIS 함수로 DB 안에서 한다.
  * <p>
  * Hibernate Spatial 대신 JDBC를 고른 이유: 자바 쪽에서 도형을 다룰 일이 없고(판정·대표점 계산 모두 DB 함수),
  * 좌표를 엔티티·영속성 컨텍스트에 올리지 않아 저장·로그로 새어 나갈 경로가 줄어든다(ADR 0009).
@@ -34,14 +34,40 @@ public class NeighborhoodRepository {
 	}
 
 	/**
-	 * 좌표가 속한 유효 동네. 경계선 위 좌표도 포함(ST_Covers)하며, 두 동네의 공유 경계선 위면
-	 * 행정동 코드가 작은 쪽에 귀속한다(02 §3.1 불변식: 경계선 위 좌표는 적재 시 정한 규칙으로 하나에 귀속).
+	 * 좌표가 속한 유효 동네 (FR-NBR-01, ADR 0016).
+	 * <ol>
+	 * <li>경계가 있는 동네: 포함 검사. 경계선 위 좌표도 포함(ST_Covers)하며, 두 동네의 공유 경계선 위면 행정동 코드가 작은 쪽.</li>
+	 * <li>경계가 없는 동네: 가장 가까운 대표점(KNN {@code <->}, geography 거리). {@code maxDistanceMeters}보다 멀면 판정 불가.
+	 * 거리가 같으면(cm 단위 반올림) 행정동 코드가 작은 쪽 — 02 §3.1 "한 좌표는 최대 1개 동네" 불변식.</li>
+	 * </ol>
 	 */
-	Optional<Neighborhood> locate(double latitude, double longitude) {
-		return jdbc.sql("SELECT " + COLUMNS + " FROM nbr_neighborhood WHERE status = 'VALID' "
-				+ "AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)) ORDER BY code LIMIT 1")
+	Optional<Neighborhood> locate(double latitude, double longitude, int maxDistanceMeters) {
+		Optional<Neighborhood> covered = jdbc
+			.sql("SELECT " + COLUMNS + " FROM nbr_neighborhood WHERE status = 'VALID' AND boundary IS NOT NULL "
+					+ "AND ST_Covers(boundary, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)) ORDER BY code LIMIT 1")
 			.param("lon", longitude)
 			.param("lat", latitude)
+			.query(NeighborhoodRepository::map)
+			.optional();
+		if (covered.isPresent()) {
+			return covered;
+		}
+		// 인덱스(KNN)로 가까운 후보 몇 개를 고른 뒤 정확한 거리로 다시 정렬한다(동률 처리를 위해 후보를 여럿 둔다).
+		return jdbc.sql("""
+				SELECT %s FROM (
+				    SELECT n.*, ST_Distance(n.representative_point, q.p) AS distance
+				    FROM nbr_neighborhood n, (SELECT ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography AS p) q
+				    WHERE n.status = 'VALID' AND n.boundary IS NULL
+				    ORDER BY n.representative_point <-> q.p
+				    LIMIT 8
+				) c
+				WHERE distance <= :max
+				ORDER BY round(distance::numeric, 2), code
+				LIMIT 1
+				""".formatted(COLUMNS))
+			.param("lon", longitude)
+			.param("lat", latitude)
+			.param("max", maxDistanceMeters)
 			.query(NeighborhoodRepository::map)
 			.optional();
 	}
