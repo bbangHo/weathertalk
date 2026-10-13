@@ -31,17 +31,40 @@ public class LoginAccount {
 	@Column(nullable = false)
 	private Instant linkedAt;
 
+	/** 암호화된 제공자 연결 해제용 자격(애플·구글). 카카오·자격 미확보면 null. */
+	private String unlinkCredential;
+
+	private Instant unlinkCredentialUpdatedAt;
+
 	protected LoginAccount() {
 	}
 
 	public static LoginAccount link(UUID memberId, AuthProvider provider, String providerUserId, Instant now) {
+		return link(memberId, provider, providerUserId, null, now);
+	}
+
+	public static LoginAccount link(UUID memberId, AuthProvider provider, String providerUserId,
+			String encryptedUnlinkCredential, Instant now) {
 		LoginAccount account = new LoginAccount();
 		account.id = UUID.randomUUID();
 		account.memberId = memberId;
 		account.provider = provider;
 		account.providerUserId = providerUserId;
 		account.linkedAt = now;
+		account.updateUnlinkCredential(encryptedUnlinkCredential, now);
 		return account;
+	}
+
+	/** 로그인 때 새 자격을 받았으면 바꾼다(FR-MEM-02 규칙 2). 이번에 받지 못했으면 기존 자격을 유지한다. */
+	public void updateUnlinkCredential(String encrypted, Instant now) {
+		if (encrypted != null) {
+			unlinkCredential = encrypted;
+			unlinkCredentialUpdatedAt = now;
+		}
+	}
+
+	public UUID id() {
+		return id;
 	}
 
 	public UUID memberId() {
@@ -54,6 +77,10 @@ public class LoginAccount {
 
 	public String providerUserId() {
 		return providerUserId;
+	}
+
+	public String unlinkCredential() {
+		return unlinkCredential;
 	}
 
 }

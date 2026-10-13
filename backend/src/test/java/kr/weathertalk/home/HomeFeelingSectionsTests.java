@@ -139,14 +139,33 @@ class HomeFeelingSectionsTests extends FeelingTestBase {
 			.andExpect(jsonPath("$.feedbackStatus.data.recentRecord").doesNotExist());
 	}
 
+	/** 외출 시각은 notification에 기기 단위로 보관한다(FR-NOTI-17). 기기를 등록하고 외출 시각을 저장해 기기 ID·키를 돌려준다. */
+	private String[] deviceWithDepartureTimes(String times) throws Exception {
+		String json = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+			.post("/api/v1/notification/devices/confirm")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"platform\":\"IOS\"}")).andReturn().getResponse().getContentAsString();
+		String id = com.jayway.jsonpath.JsonPath.read(json, "$.deviceId");
+		String key = com.jayway.jsonpath.JsonPath.read(json, "$.deviceKey");
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+			.put("/api/v1/notification/devices/me/departure-times")
+			.header("X-Device-Id", id)
+			.header("X-Device-Key", key)
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"departureTimes\":[" + times + "]}")).andExpect(status().isOk());
+		return new String[] { id, key };
+	}
+
 	/** 외출 시각 기준: 시각별 기준 그룹 체감 → 가장 추운 시각 옷차림 + 일교차 안내, 어느 시각이든 비면 강수 보정. */
 	@Test
 	void departureTimesGetColdestOutfitWithLayeringAndRain() throws Exception {
 		clock.set(NOW);
 		stubWeather();
 
+		String[] device = deviceWithDepartureTimes("\"13:00\",\"18:30\"");
 		mvc.perform(get("/api/v1/home").param("neighborhoodId", N1.value())
-			.param("departureTimes", "13:00", "18:30"))
+			.header("X-Device-Id", device[0])
+			.header("X-Device-Key", device[1]))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.departureOutfit.status").value("OK"))
 			.andExpect(jsonPath("$.departureOutfit.data.departures.length()").value(2))
@@ -174,7 +193,10 @@ class HomeFeelingSectionsTests extends FeelingTestBase {
 		server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathEqualTo(WeatherStubs.UV))
 			.willReturn(okJson("{}").withFixedDelay(2000)));
 
-		mvc.perform(get("/api/v1/home").param("neighborhoodId", N1.value()).param("departureTimes", "18:00"))
+		String[] device = deviceWithDepartureTimes("\"18:00\"");
+		mvc.perform(get("/api/v1/home").param("neighborhoodId", N1.value())
+			.header("X-Device-Id", device[0])
+			.header("X-Device-Key", device[1]))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.sensitivityFeelings.status").value("FAILED"))
 			.andExpect(jsonPath("$.sensitivityFeelings.failure").value("TIMEOUT"))

@@ -54,8 +54,8 @@ class FieldReportPrecipitationTests extends FieldReportTestBase {
 		// 억제 기간 안의 추가 제보는 다시 발행하지 않는다
 		report(members.get(3), FieldReportKind.RAIN);
 		assertThat(events(FieldReportPrecipitationReached.class)).hasSize(1);
-		// 구독자(M7 notification)가 없는 동안은 이벤트 발행 저장소에 쌓이지 않는다
-		assertThat(storedPublications(FieldReportPrecipitationReached.class)).isZero();
+		// M7: notification이 구독해 이벤트 발행 저장소에 영속화되고, 처리가 끝나면 완료로 기록된다
+		assertPublicationsCompleted(FieldReportPrecipitationReached.class);
 	}
 
 	/** 비와 눈은 합산하지 않고 강수 형태별로 따로 판정·억제한다. */

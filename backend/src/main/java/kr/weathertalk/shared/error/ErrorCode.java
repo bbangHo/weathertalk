@@ -43,6 +43,15 @@ public enum ErrorCode {
 	/** 닉네임 변경 주기가 지나지 않았다. 응답의 {@code nextChangeAvailableAt}에 다음 변경 가능 시각을 싣는다. */
 	NICKNAME_CHANGE_TOO_SOON(HttpStatus.UNPROCESSABLE_CONTENT),
 
+	/** 이 회원은 이미 같은 제공자의 로그인 계정을 가졌다(회원당 제공자 1개, FR-MEM-06). */
+	LOGIN_ACCOUNT_PROVIDER_ALREADY_LINKED(HttpStatus.CONFLICT),
+
+	/** 이미 다른 회원에 연결된 로그인 계정이다. 계정 병합은 없다 — 앱은 "이미 다른 회원이 쓰는 계정"으로 안내한다(FR-MEM-06). */
+	LOGIN_ACCOUNT_IN_USE(HttpStatus.CONFLICT),
+
+	/** 마지막 로그인 계정은 해제할 수 없다(해제하려면 탈퇴, FR-MEM-07). */
+	LAST_LOGIN_ACCOUNT(HttpStatus.UNPROCESSABLE_CONTENT),
+
 	// ── neighborhood ──
 
 	/** 좌표가 어느 유효 동네에도 속하지 않는다(바다·국외 등). 조회용 판정(FR-NBR-01·02) 결과. */
@@ -101,6 +110,17 @@ public enum ErrorCode {
 
 	/** 본인 게시글에는 좋아요할 수 없다(BR-COM-10). */
 	SELF_LIKE_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// ── notification ──
+
+	/**
+	 * 기기 키가 기기 ID와 맞지 않는다(BR-NOTI-15). 회원 인증 토큰만으로는 다른 기기의 구독을 바꿀 수 없다.
+	 * 기기 ID 자체가 없으면(삭제됨) NOT_FOUND + {@code reason=DEVICE_NOT_FOUND} — 앱은 기기 확인으로 다시 등록한다.
+	 */
+	DEVICE_KEY_MISMATCH(HttpStatus.FORBIDDEN),
+
+	/** 테스트 발송 기기당 한도(notification.test.rate-limit)를 넘었다(개발·스테이징 전용, FR-NOTI-15). */
+	TEST_SEND_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS),
 
 	// ── home ──
 

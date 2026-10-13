@@ -106,12 +106,18 @@ public abstract class FieldReportTestBase extends WeatherTestBase {
 		return recorder.of(type);
 	}
 
-	/** 구독자가 없는 이벤트는 이벤트 발행 저장소에 쌓이지 않는다(M7에서 구독자를 붙이면 그때부터 영속화된다). */
-	protected int storedPublications(Class<?> type) {
-		return jdbc.sql("SELECT count(*) FROM event_publication WHERE event_type = :type")
+	/** 구독자(notification)가 있는 이벤트는 발행 저장소에 영속화되고, 구독 처리가 끝나면 모두 완료로 기록된다(ADR 0002). */
+	protected void assertPublicationsCompleted(Class<?> type) {
+		org.assertj.core.api.Assertions.assertThat(jdbc.sql("SELECT count(*) FROM event_publication WHERE event_type = :type")
 			.param("type", type.getName())
 			.query(Integer.class)
-			.single();
+			.single()).isPositive();
+		org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> org.assertj.core.api.Assertions
+			.assertThat(jdbc.sql("SELECT count(*) FROM event_publication WHERE event_type = :type AND completion_date IS NULL")
+				.param("type", type.getName())
+				.query(Integer.class)
+				.single())
+			.isZero());
 	}
 
 }

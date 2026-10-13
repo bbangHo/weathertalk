@@ -69,7 +69,7 @@ class PrecipEpisodeRecorder {
 		}
 		episodes.insert(code, candidate.startsAt(), now, candidate.basisIssuedAt());
 		events.publishEvent(new PrecipitationStartForecasted(UUID.randomUUID(), neighborhoodId, candidate.startsAt(),
-				candidate.type(), candidate.phrase(), candidate.basisIssuedAt()));
+				candidate.type(), candidate.phrase(), candidate.basisIssuedAt(), now));
 		return true;
 	}
 

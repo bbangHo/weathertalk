@@ -55,10 +55,14 @@ public record MemberProperties(
 
 	}
 
+	/**
+	 * @param pollInterval 재시도 대기 작업을 확인하는 주기(스펙 §7에 없는 키). 첫 시도는 커밋 직후 바로 한다
+	 */
 	public record ExternalUnlink(
 			@NotNull @Min(1) Integer maxAttempts,
 			@NotNull @DurationMin(seconds = 1) Duration backoff,
-			@NotNull @DurationMin(days = 1) Duration retention) {
+			@NotNull @DurationMin(days = 1) Duration retention,
+			@NotNull @DurationMin(seconds = 1) Duration pollInterval) {
 	}
 
 	/**

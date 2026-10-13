@@ -31,7 +31,7 @@ class TokenServiceTests {
 	static MemberProperties properties(String secret) {
 		return new MemberProperties(Duration.ofHours(1), Duration.ofDays(30), Duration.ofSeconds(30),
 				Duration.ofMinutes(30), new MemberProperties.Nickname(10, Duration.ofDays(30), 2, 10),
-				new MemberProperties.ExternalUnlink(8, Duration.ofMinutes(1), Duration.ofDays(30)),
+				new MemberProperties.ExternalUnlink(8, Duration.ofMinutes(1), Duration.ofDays(30), Duration.ofMinutes(1)),
 				new MemberProperties.Token(secret));
 	}
 

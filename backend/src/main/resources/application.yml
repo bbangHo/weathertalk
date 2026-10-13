@@ -63,6 +63,39 @@ member:
     max-attempts: 8
     backoff: 1m
     retention: 30d
+    poll-interval: 1m   # 재시도 대기 작업 확인 주기(스펙 §7에 없는 키). 첫 시도는 커밋 직후
+  jobs:
+    # 제공자 연결 해제 재시도·자격 파기 정기 작업 등록 여부
+    enabled: true
+  # 소셜 로그인 제공자 연결(운영 파라미터 아님). 키·ID는 루트 .env의 KAKAO_*·APPLE_*·GOOGLE_* 환경 변수로 받는다.
+  # 비어 있어도 기동은 되고, 그 제공자 로그인은 '일시적으로 사용할 수 없음'(503), 로그인 수단 목록에서 빠진다.
+  providers:
+    timeout: 5s
+    jwks-cache-ttl: 6h               # 애플·구글 공개키 캐시. 모르는 kid면 수명 전이라도 다시 받는다(키 회전)
+    jwks-refresh-min-interval: 1m    # 모르는 kid로 인한 재조회 최소 간격
+    # 애플·구글 연결 해제용 토큰 암호화 키(32자 이상 무작위). 비면 토큰을 보관하지 않는다(탈퇴 때 애플·구글 해제 생략).
+    # 아래 기본값은 local·test 전용. prod·staging은 아래 프로파일 블록에서 MEMBER_PROVIDER_TOKEN_KEY만 읽는다.
+    credential-key: ${MEMBER_PROVIDER_TOKEN_KEY:dev-only-insecure-provider-token-key-do-not-use}
+    kakao:
+      api-base-url: https://kapi.kakao.com
+      app-id: ${KAKAO_APP_ID:}          # 토큰 정보의 app_id와 비교(다른 앱 토큰 거부)
+      admin-key: ${KAKAO_ADMIN_KEY:}    # 탈퇴·계정 해제 시 연결 끊기
+    apple:
+      base-url: https://appleid.apple.com
+      issuer: https://appleid.apple.com
+      client-ids: ${APPLE_CLIENT_ID:}   # identity token aud(번들 ID, 쉼표로 여러 개)
+      team-id: ${APPLE_TEAM_ID:}
+      key-id: ${APPLE_KEY_ID:}
+      private-key-path: ${APPLE_PRIVATE_KEY_PATH:}
+      client-secret-ttl: 5m             # 토큰 교환·철회 때마다 새로 서명하는 클라이언트 시크릿 수명
+    google:
+      jwks-url: https://www.googleapis.com/oauth2/v3/certs
+      issuers: [https://accounts.google.com, accounts.google.com]
+      client-ids: ${GOOGLE_CLIENT_IDS:} # ID 토큰 aud로 허용할 클라이언트 ID(쉼표 구분)
+      token-url: https://oauth2.googleapis.com/token
+      revoke-url: https://oauth2.googleapis.com/revoke
+      server-client-id: ${GOOGLE_SERVER_CLIENT_ID:}         # 서버 인가 코드 교환용 웹 클라이언트
+      server-client-secret: ${GOOGLE_SERVER_CLIENT_SECRET:}
   token:
     # 접근·갱신 토큰 서명 비밀값(32자 이상). 운영은 환경 변수 MEMBER_TOKEN_SECRET 필수(prod 프로파일은 기본값 없음 → 비면 기동 실패).
     # 아래 기본값은 local·test 전용 개발 키다. 운영·스테이징에 쓰지 않는다.
@@ -351,6 +384,16 @@ notification:
     rate-limit:
       max-count: 10
       period: 1h
+  jobs:
+    # 정기 날씨 알림·재시도·정리·구독 동네 대조 정기 작업 등록 여부
+    enabled: true
+  # 푸시 제공자(FCM HTTP v1) 연결(운영 파라미터 아님). 서비스 계정 키가 없으면 기동은 되고 발송만 꺼진다(경고 로그).
+  push:
+    fcm:
+      base-url: https://fcm.googleapis.com
+      # Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개 키(JSON). 파일은 저장소 밖에 두고 경로만 넣는다.
+      credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+      timeout: 5s
 
 home:
   section-timeout: 2s
@@ -376,6 +419,9 @@ member:
   token:
     # 운영은 개발용 기본 키를 쓰지 않는다. MEMBER_TOKEN_SECRET 이 없으면 빈 값 → 검증 실패로 기동 중단.
     secret: ${MEMBER_TOKEN_SECRET:}
+  providers:
+    # 개발용 기본 키를 쓰지 않는다. 비면 애플·구글 연결 해제용 토큰을 보관하지 않는다(기동은 정상).
+    credential-key: ${MEMBER_PROVIDER_TOKEN_KEY:}
 notification:
   test:
     # 개발용 기능은 운영 프로파일에서 등록하지 않는다 (contracts.md §4)
@@ -398,3 +444,6 @@ member:
   token:
     # 스테이징도 개발용 기본 키를 쓰지 않는다 (개발 전용 로그인은 스테이징에 등록되므로 키 유출 시 위조 위험이 더 크다).
     secret: ${MEMBER_TOKEN_SECRET:}
+  providers:
+    # 개발용 기본 키를 쓰지 않는다. 비면 애플·구글 연결 해제용 토큰을 보관하지 않는다(기동은 정상).
+    credential-key: ${MEMBER_PROVIDER_TOKEN_KEY:}

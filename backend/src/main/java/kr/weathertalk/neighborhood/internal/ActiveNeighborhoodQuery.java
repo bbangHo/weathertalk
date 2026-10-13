@@ -15,8 +15,8 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
 /**
  * 활성 동네·활성 예보 격자 산출 (FR-NBR-09, BR-NBR-09).
  * <p>
- * 활성 동네 = 최근 활동 회원(현재 동네 확정 시각이 neighborhood.active-member-window 이내)의 현재 동네 ∪ 그 회원들의 관심 동네.
- * 알림 구독 동네(FR-NBR-10)는 M7에서 구독 수 테이블을 추가해 이 합집합에 더한다.
+ * 활성 동네 = 최근 활동 회원(현재 동네 확정 시각이 neighborhood.active-member-window 이내)의 현재 동네 ∪ 그 회원들의 관심 동네
+ * ∪ 알림 구독 수가 1 이상인 동네(FR-NBR-10 — 비회원 기기만 구독한 동네도 사전 갱신·강수 시작 감시 대상이 된다).
  * 동네 수가 행정동 규모(수천)라 조회 시점에 계산한다. 비용이 커지면 사유 집계를 변경 시점에 갱신하는 방식으로 바꾼다(02 FR-NBR-09).
  */
 @Component
@@ -29,6 +29,8 @@ class ActiveNeighborhoodQuery {
 			    SELECT neighborhood_code FROM active_members
 			    UNION
 			    SELECT i.neighborhood_code FROM nbr_interest_neighborhood i JOIN active_members a ON a.member_id = i.member_id
+			    UNION
+			    SELECT neighborhood_code FROM nbr_notification_subscription WHERE subscription_count > 0
 			)
 			SELECT n.code, n.grid_nx, n.grid_ny FROM nbr_neighborhood n JOIN reasons r ON r.neighborhood_code = n.code
 			WHERE n.status = 'VALID'

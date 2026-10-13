@@ -82,8 +82,8 @@ class PrecipitationStartTests extends FieldReportTestBase {
 		observation("2026-10-13T09:00", "0");
 		collect();
 		assertThat(published()).hasSize(1);
-		// 구독자(M7 notification)가 없는 동안은 이벤트 발행 저장소에 쌓이지 않는다
-		assertThat(storedPublications(PrecipitationStartForecasted.class)).isZero();
+		// M7: notification이 구독해 이벤트 발행 저장소에 영속화되고, 처리가 끝나면 완료로 기록된다
+		assertPublicationsCompleted(PrecipitationStartForecasted.class);
 	}
 
 	/** 조건 2: 이미 비가 오는 중(실황 강수 형태 있음)이면 '시작' 예보가 아니다. */

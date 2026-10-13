@@ -12,7 +12,7 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
  * neighborhood 모듈의 공개 인터페이스 (contracts.md §2.2). 다른 모듈은 이 타입으로만 neighborhood 기능을 사용한다.
  * <p>
  * 좌표({@link DeviceLocation})는 판정에만 쓰고 저장·로그에 남기지 않는다(ADR 0009).
- * 알림 구독 동네 반영(FR-NBR-10)은 M7에서 추가한다.
+ * 알림 구독 동네 반영(FR-NBR-10)은 notification만 부르는 명령이다(역방향 이벤트 구독 대신, contracts.md §1).
  */
 public interface NeighborhoodApi {
 
@@ -52,6 +52,22 @@ public interface NeighborhoodApi {
 
 	/** 관심 동네 일괄 등록 (FR-NBR-06): 가입·로그인 직후 기기 보관분을 서버 목록 뒤에 합친다. 멱등. */
 	InterestMergeResult mergeInterestNeighborhoods(MemberId memberId, List<NeighborhoodId> neighborhoodIds);
+
+	/**
+	 * 알림 구독 동네 반영 (FR-NBR-10): 동네의 알림 구독 수를 delta만큼 바꾼다. notification이 구독 생성·해제·동네 변경·기기 삭제마다
+	 * 자기 트랜잭션 안에서 부른다. 0 아래로 내려가는 감소는 0에서 멈추고 경고 로그를 남긴다.
+	 *
+	 * @throws kr.weathertalk.shared.error.DomainException NOT_FOUND — 없는 동네
+	 */
+	void applyNotificationSubscriptionChange(NeighborhoodId neighborhoodId, int delta);
+
+	/**
+	 * 알림 구독 수 전체 대조 (02 §9 미결 8 — 보정 작업을 두는 쪽으로 구현): notification이 진실 원천으로 계산한 동네별 구독 수로
+	 * 통째로 바꾼다. 목록에 없는 동네는 0이 된다. 증감 호출의 누락·중복으로 생긴 어긋남을 바로잡는다.
+	 *
+	 * @return 값이 바뀐 동네 수
+	 */
+	int reconcileNotificationSubscriptions(Map<NeighborhoodId, Integer> counts);
 
 	/** 활성 동네 목록 (FR-NBR-09). */
 	List<NeighborhoodId> findActiveNeighborhoods();

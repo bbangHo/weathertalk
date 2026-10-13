@@ -22,7 +22,7 @@ import kr.weathertalk.shared.Ids.MemberId;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 
 /**
- * {@link NeighborhoodApi} 구현 (FR-NBR-01~09).
+ * {@link NeighborhoodApi} 구현 (FR-NBR-01~10).
  */
 @Service
 class NeighborhoodApiService implements NeighborhoodApi {
@@ -31,15 +31,18 @@ class NeighborhoodApiService implements NeighborhoodApi {
 	private final CurrentNeighborhoodService currentService;
 	private final InterestNeighborhoodService interestService;
 	private final ActiveNeighborhoodQuery activeQuery;
+	private final NotificationSubscriptionCounter subscriptionCounter;
 	private final NeighborhoodProperties properties;
 
 	NeighborhoodApiService(NeighborhoodRepository neighborhoods, CurrentNeighborhoodService currentService,
 			InterestNeighborhoodService interestService, ActiveNeighborhoodQuery activeQuery,
+			NotificationSubscriptionCounter subscriptionCounter,
 			NeighborhoodProperties properties) {
 		this.neighborhoods = neighborhoods;
 		this.currentService = currentService;
 		this.interestService = interestService;
 		this.activeQuery = activeQuery;
+		this.subscriptionCounter = subscriptionCounter;
 		this.properties = properties;
 	}
 
@@ -96,6 +99,16 @@ class NeighborhoodApiService implements NeighborhoodApi {
 	@Override
 	public InterestMergeResult mergeInterestNeighborhoods(MemberId memberId, List<NeighborhoodId> neighborhoodIds) {
 		return interestService.merge(memberId, neighborhoodIds);
+	}
+
+	@Override
+	public void applyNotificationSubscriptionChange(NeighborhoodId neighborhoodId, int delta) {
+		subscriptionCounter.apply(neighborhoodId, delta);
+	}
+
+	@Override
+	public int reconcileNotificationSubscriptions(Map<NeighborhoodId, Integer> counts) {
+		return subscriptionCounter.reconcile(counts);
 	}
 
 	@Override

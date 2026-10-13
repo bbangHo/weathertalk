@@ -17,13 +17,16 @@ import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import kr.weathertalk.member.MemberRegistered;
 import kr.weathertalk.member.TemperatureSensitivity;
 import kr.weathertalk.member.internal.LoginOutcome.MemberSummary;
 import kr.weathertalk.member.internal.auth.IssuedTokens;
 import kr.weathertalk.member.internal.auth.ProviderCredential;
+import kr.weathertalk.member.internal.auth.ProviderCredentialCipher;
 import kr.weathertalk.member.internal.auth.ProviderCredentialVerifier;
 import kr.weathertalk.member.internal.auth.TokenService;
 import kr.weathertalk.member.internal.auth.VerifiedProviderAccount;
@@ -41,10 +44,11 @@ import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
 
 /**
- * 로그인·가입 완료·토큰 재발급·로그아웃 (FR-MEM-02 흐름, FR-MEM-03·04·05).
+ * 로그인·가입 완료·토큰 재발급·로그아웃 (FR-MEM-02, FR-MEM-03·04·05).
  * <p>
- * 로그인은 제공자 검증 포트({@link ProviderCredentialVerifier})만 바꿔 끼우는 구조다. 지금은 DEV 검증기만 있고(개발 전용 로그인),
- * M7에서 실제 제공자 검증기를 추가해도 가입 티켓 → 가입 완료 → 토큰 흐름은 그대로다.
+ * 로그인은 제공자 검증 포트({@link ProviderCredentialVerifier})로 제공자 자격을 검증한 뒤 같은 흐름을 탄다: 연결된 활동 회원이 있으면 토큰,
+ * 없으면 가입 티켓. 제공자 호출(검증·인가 코드 교환)은 DB 트랜잭션 밖에서 한다(외부 지연이 DB 연결을 붙잡지 않게).
+ * 검증기: 카카오·애플·구글(항상 등록, 키가 없으면 '일시적으로 사용할 수 없음'), 개발 전용 DEV(local·staging·test).
  */
 @Service
 public class AuthService {
@@ -59,14 +63,17 @@ public class AuthService {
 	private final TermsService termsService;
 	private final NicknameGenerator nicknameGenerator;
 	private final TokenService tokenService;
+	private final ProviderCredentialCipher cipher;
 	private final ApplicationEventPublisher events;
 	private final MemberProperties properties;
 	private final Clock clock;
+	private final TransactionTemplate tx;
 
 	AuthService(List<ProviderCredentialVerifier> verifiers, MemberRepository members, LoginAccountRepository accounts,
 			SignupTicketRepository tickets, LoginSessionRepository sessions, TermsService termsService,
-			NicknameGenerator nicknameGenerator, TokenService tokenService, ApplicationEventPublisher events,
-			MemberProperties properties, Clock clock) {
+			NicknameGenerator nicknameGenerator, TokenService tokenService, ProviderCredentialCipher cipher,
+			ApplicationEventPublisher events, MemberProperties properties, Clock clock,
+			PlatformTransactionManager transactionManager) {
 		this.verifiers = verifiers.stream()
 			.collect(Collectors.toUnmodifiableMap(ProviderCredentialVerifier::provider, Function.identity()));
 		this.members = members;
@@ -76,37 +83,61 @@ public class AuthService {
 		this.termsService = termsService;
 		this.nicknameGenerator = nicknameGenerator;
 		this.tokenService = tokenService;
+		this.cipher = cipher;
 		this.events = events;
 		this.properties = properties;
 		this.clock = clock;
+		this.tx = new TransactionTemplate(transactionManager);
 	}
 
 	/**
-	 * 로그인 (FR-MEM-02 규칙 2·3). 연결된 활동 회원이 있으면 토큰, 없으면 가입 티켓을 준다.
+	 * 제공자 자격 검증 (BR-MEM-03). 로그인·로그인 계정 연결이 함께 쓴다.
+	 *
+	 * @throws DomainException INVALID_REQUEST(미지원 제공자), AUTHENTICATION_FAILED(검증 실패), TEMPORARILY_UNAVAILABLE(제공자 장애·미설정)
 	 */
-	@Transactional
-	public LoginOutcome login(ProviderCredential credential) {
-		ProviderCredentialVerifier verifier = verifiers.get(credential.provider());
+	public VerifiedProviderAccount verify(ProviderCredential credential) {
+		ProviderCredentialVerifier verifier = credential.provider() == null ? null : verifiers.get(credential.provider());
 		if (verifier == null) {
 			throw new DomainException(ErrorCode.INVALID_REQUEST, "지원하지 않는 로그인 제공자입니다.");
 		}
-		VerifiedProviderAccount account = verifier.verify(credential);
-		Optional<Member> existing = accounts.findByProviderAndProviderUserId(account.provider(), account.providerUserId())
-			.flatMap(a -> members.findById(a.memberId()))
-			.filter(Member::active);
-		if (existing.isPresent()) {
-			return startSession(existing.get());
-		}
-		Instant now = clock.instant();
-		String ticket = newOpaqueToken();
-		Instant expiresAt = now.plus(properties.signupTicketTtl());
-		tickets.save(SignupTicket.issue(hash(ticket), account.provider(), account.providerUserId(), account.email(),
-				now, expiresAt));
-		return new LoginOutcome.SignupRequired(ticket, expiresAt, termsService.currentTerms());
+		return verifier.verify(credential);
+	}
+
+	/** 지금 쓸 수 있는(키가 설정된) 제공자. 개발 전용 DEV는 빼고 돌려준다. */
+	public List<AuthProvider> availableProviders() {
+		return verifiers.values()
+			.stream()
+			.filter(v -> v.provider() != AuthProvider.DEV && v.available())
+			.map(ProviderCredentialVerifier::provider)
+			.sorted()
+			.toList();
 	}
 
 	/**
-	 * 가입 완료 (FR-MEM-03). 한 트랜잭션에서 회원 생성 → 무작위 닉네임 → 로그인 계정 연결 → 약관 동의 이력 →
+	 * 로그인 (FR-MEM-02 규칙 1~3). 연결된 활동 회원이 있으면 토큰(받은 연결 해제용 자격은 갱신 보관), 없으면 가입 티켓을 준다.
+	 */
+	public LoginOutcome login(ProviderCredential credential) {
+		VerifiedProviderAccount account = verify(credential);
+		String encrypted = cipher.encrypt(account.unlinkCredential());
+		return tx.execute(status -> {
+			Instant now = clock.instant();
+			Optional<LoginAccount> linked = accounts.findByProviderAndProviderUserId(account.provider(),
+					account.providerUserId());
+			Optional<Member> existing = linked.flatMap(a -> members.findById(a.memberId())).filter(Member::active);
+			if (existing.isPresent()) {
+				linked.get().updateUnlinkCredential(encrypted, now);
+				return startSession(existing.get());
+			}
+			String ticket = newOpaqueToken();
+			Instant expiresAt = now.plus(properties.signupTicketTtl());
+			tickets.save(SignupTicket.issue(hash(ticket), account.provider(), account.providerUserId(), account.email(),
+					encrypted, now, expiresAt));
+			return new LoginOutcome.SignupRequired(ticket, expiresAt, termsService.currentTerms());
+		});
+	}
+
+	/**
+	 * 가입 완료 (FR-MEM-03). 한 트랜잭션에서 회원 생성 → 무작위 닉네임 → 로그인 계정 연결(연결 해제용 자격 포함) → 약관 동의 이력 →
 	 * 세션·토큰 발급 → {@link MemberRegistered} 발행.
 	 */
 	@Transactional
@@ -136,7 +167,8 @@ public class AuthService {
 
 		Member member = members.save(Member.register(uniqueNickname(), sensitivity, ticket.email(), now));
 		termsService.recordSignupAgreements(member.id(), agreements);
-		accounts.save(LoginAccount.link(member.id(), ticket.provider(), ticket.providerUserId(), now));
+		accounts.save(LoginAccount.link(member.id(), ticket.provider(), ticket.providerUserId(),
+				ticket.unlinkCredential(), now));
 		ticket.markUsed(now);
 		LoginOutcome.Registered registered = startSession(member);
 		events.publishEvent(new MemberRegistered(UUID.randomUUID(), member.memberId(), now));

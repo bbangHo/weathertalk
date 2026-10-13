@@ -17,3 +17,17 @@ feeling:
   jobs:
     # 체감 정기 작업(매핑 재계산·보정 판정·스냅샷 백필)은 테스트가 서비스 메서드를 직접 부른다
     enabled: false
+
+member:
+  jobs:
+    # 제공자 연결 해제 재시도 정기 작업은 테스트가 서비스 메서드를 직접 부른다(커밋 직후 첫 시도는 그대로 돈다)
+    enabled: false
+  providers:
+    # 키 회전 테스트가 바로 다시 받을 수 있게
+    jwks-refresh-min-interval: 0s
+    timeout: 2s
+
+notification:
+  jobs:
+    # 정기 날씨 알림·재시도·정리 작업은 테스트가 서비스 메서드를 직접 부른다
+    enabled: false

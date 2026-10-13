@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import kr.weathertalk.member.MemberApi;
 import kr.weathertalk.member.Requester;
@@ -21,12 +23,13 @@ import kr.weathertalk.member.SensitivityChangeSource;
 import kr.weathertalk.member.TemperatureSensitivity;
 import kr.weathertalk.member.internal.MemberAccountService;
 import kr.weathertalk.member.internal.TermsService;
+import kr.weathertalk.member.internal.auth.ProviderCredential;
 import kr.weathertalk.member.internal.domain.AuthProvider;
 import kr.weathertalk.member.internal.web.AuthController.AgreementRequest;
 import kr.weathertalk.member.internal.web.LoginResponse.TermsResponse;
 
 /**
- * 마이페이지 (FR-MEM-08·09·10·11·12). 모두 회원 전용이며, 약관 재동의 전에도 허용되는 기능이라
+ * 마이페이지 (FR-MEM-06·07·08·09·10·11·12). 모두 회원 전용이며, 약관 재동의 전에도 허용되는 기능이라
  * {@code @RequiresAgreedTerms}를 붙이지 않는다(contracts.md §4: 민감도 변경·탈퇴·조회 허용).
  */
 @RestController
@@ -52,6 +55,15 @@ class MemberController {
 	}
 
 	record ReagreeRequest(List<AgreementRequest> agreements) {
+	}
+
+	record LinkAccountRequest(@NotNull AuthProvider provider, @NotBlank String token, String authorizationCode) {
+
+		@Override
+		public String toString() {
+			return "LinkAccountRequest[provider=" + provider + "]";
+		}
+
 	}
 
 	private final MemberAccountService accountService;
@@ -86,6 +98,19 @@ class MemberController {
 	MyProfileResponse reagree(Requester.Member member, @RequestBody ReagreeRequest request) {
 		termsService.reagree(member.memberId().value(), AgreementRequest.toInputs(request.agreements()));
 		return MyProfileResponse.from(accountService.myProfile(member.memberId().value()));
+	}
+
+	/** 로그인 계정 연결 (FR-MEM-06): 다른 제공자 계정을 이 회원에 더한다. */
+	@PostMapping("/api/v1/members/me/login-accounts")
+	MyProfileResponse linkAccount(Requester.Member member, @Valid @RequestBody LinkAccountRequest request) {
+		return MyProfileResponse.from(accountService.linkAccount(member.memberId().value(),
+				new ProviderCredential(request.provider(), request.token(), request.authorizationCode(), null)));
+	}
+
+	/** 로그인 계정 해제 (FR-MEM-07). 마지막 계정은 거부. 제공자 측 연결 해제는 커밋 후 비동기. */
+	@DeleteMapping("/api/v1/members/me/login-accounts/{provider}")
+	MyProfileResponse unlinkAccount(Requester.Member member, @PathVariable AuthProvider provider) {
+		return MyProfileResponse.from(accountService.unlinkAccount(member.memberId().value(), provider));
 	}
 
 	@DeleteMapping("/api/v1/members/me")

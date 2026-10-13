@@ -67,11 +67,12 @@ class CommentTests extends CommunityTestBase {
 				assertThat(e.parentCommentId().value()).isEqualTo(commentId);
 				assertThat(e.parentCommentAuthorId()).isEqualTo(neighbor.memberId());
 			});
-		// M7 전까지 구독자가 없으므로 발행 저장소에 미완료로 남지 않는다
-		assertThat(jdbc.sql("SELECT count(*) FROM event_publication WHERE event_type = :t AND completion_date IS NULL")
+		// M7: notification(댓글 알림)이 구독하므로 발행 저장소에 영속화되고, 처리가 끝나면 모두 완료로 기록된다
+		org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> assertThat(jdbc
+			.sql("SELECT count(*) FROM event_publication WHERE event_type = :t AND completion_date IS NULL")
 			.param("t", CommentCreated.class.getName())
 			.query(Integer.class)
-			.single()).isZero();
+			.single()).isZero());
 
 		detail(neighbor, postId).andExpect(status().isOk())
 			.andExpect(jsonPath("$.post.commentCount").value(2))

@@ -12,6 +12,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import kr.weathertalk.member.internal.NicknameGenerator;
+import kr.weathertalk.member.provider.ProviderTestKeys;
+import kr.weathertalk.notification.RecordingPushSender;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class IntegrationTestConfiguration {
@@ -44,6 +46,39 @@ public class IntegrationTestConfiguration {
 			registry.add("weather.source.air-korea.base-url", () -> weatherSourceServer.baseUrl() + "/air");
 			registry.add("weather.source.air-korea.service-key", () -> "test-air-key");
 		};
+	}
+
+	/**
+	 * 소셜 로그인 제공자(카카오 /kakao, 애플 /apple, 구글 /google) 모의 서버 연결. 키는 테스트용(ProviderTestKeys)이다.
+	 */
+	@Bean
+	DynamicPropertyRegistrar loginProviderProperties(WireMockServer weatherSourceServer) {
+		return registry -> {
+			String base = weatherSourceServer.baseUrl();
+			registry.add("member.providers.kakao.api-base-url", () -> base + "/kakao");
+			registry.add("member.providers.kakao.app-id", () -> ProviderTestKeys.KAKAO_APP_ID);
+			registry.add("member.providers.kakao.admin-key", () -> ProviderTestKeys.KAKAO_ADMIN_KEY);
+			registry.add("member.providers.apple.base-url", () -> base + "/apple");
+			registry.add("member.providers.apple.client-ids", () -> ProviderTestKeys.APPLE_CLIENT_ID);
+			registry.add("member.providers.apple.team-id", () -> ProviderTestKeys.APPLE_TEAM_ID);
+			registry.add("member.providers.apple.key-id", () -> ProviderTestKeys.APPLE_KEY_ID);
+			registry.add("member.providers.apple.private-key-path",
+					() -> ProviderTestKeys.APPLE_PRIVATE_KEY_PATH.toString());
+			registry.add("member.providers.google.jwks-url", () -> base + "/google/certs");
+			registry.add("member.providers.google.client-ids", () -> String.join(",", ProviderTestKeys.GOOGLE_CLIENT_IDS));
+			registry.add("member.providers.google.token-url", () -> base + "/google/token");
+			registry.add("member.providers.google.revoke-url", () -> base + "/google/revoke");
+			registry.add("member.providers.google.server-client-id", () -> ProviderTestKeys.GOOGLE_SERVER_CLIENT_ID);
+			registry.add("member.providers.google.server-client-secret",
+					() -> ProviderTestKeys.GOOGLE_SERVER_CLIENT_SECRET);
+		};
+	}
+
+	/** 푸시 발송을 기록하는 가짜 발송기(FCM 어댑터 대신). 테스트마다 clear()한다. */
+	@Bean
+	@Primary
+	RecordingPushSender recordingPushSender() {
+		return new RecordingPushSender();
 	}
 
 	@Bean

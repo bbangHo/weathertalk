@@ -6,6 +6,7 @@ import static kr.weathertalk.neighborhood.NeighborhoodTestData.N2;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N3;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N7;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.List;
@@ -34,6 +35,9 @@ class ActiveNeighborhoodTests {
 
 	@Autowired
 	MutableClock clock;
+
+	@Autowired
+	org.springframework.jdbc.core.simple.JdbcClient jdbc;
 
 	@BeforeEach
 	void setUp() {
@@ -66,6 +70,38 @@ class ActiveNeighborhoodTests {
 		clock.advance(Duration.ofDays(30).plusSeconds(1));
 		assertThat(neighborhoodApi.findActiveNeighborhoods()).isEmpty();
 		assertThat(neighborhoodApi.findActiveForecastGrids()).isEmpty();
+	}
+
+
+	/**
+	 * FR-NBR-10: 알림 구독 수가 1 이상인 동네는 회원 활동이 없어도 활성 동네다. 0 아래로 내려가는 감소는 0에서 멈추고(경고 로그),
+	 * 없는 동네는 거부한다. 대조는 주어진 값으로 통째로 바꾼다(목록에 없는 동네는 0).
+	 */
+	@Test
+	void notificationSubscriptionCountsAddActiveNeighborhoods() {
+		clock.set(MutableClock.BASE.plus(Duration.ofDays(1000)));
+		jdbc.sql("DELETE FROM nbr_notification_subscription").update();
+		try {
+			neighborhoodApi.applyNotificationSubscriptionChange(N2, 1);
+			neighborhoodApi.applyNotificationSubscriptionChange(N2, 1);
+			assertThat(neighborhoodApi.findActiveNeighborhoods()).containsExactly(N2);
+			assertThat(neighborhoodApi.findActiveForecastGrids()).hasSize(1);
+
+			neighborhoodApi.applyNotificationSubscriptionChange(N2, -3);
+			assertThat(neighborhoodApi.findActiveNeighborhoods()).isEmpty();
+			neighborhoodApi.applyNotificationSubscriptionChange(N2, 1);
+			assertThat(neighborhoodApi.findActiveNeighborhoods()).containsExactly(N2);
+
+			assertThatThrownBy(() -> neighborhoodApi
+				.applyNotificationSubscriptionChange(new kr.weathertalk.shared.Ids.NeighborhoodId("0000000000"), 1))
+				.isInstanceOf(kr.weathertalk.shared.error.DomainException.class);
+
+			assertThat(neighborhoodApi.reconcileNotificationSubscriptions(java.util.Map.of(N3, 2))).isEqualTo(2);
+			assertThat(neighborhoodApi.findActiveNeighborhoods()).containsExactly(N3);
+		}
+		finally {
+			jdbc.sql("DELETE FROM nbr_notification_subscription").update();
+		}
 	}
 
 }

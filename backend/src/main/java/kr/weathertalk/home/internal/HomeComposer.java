@@ -1,10 +1,6 @@
 package kr.weathertalk.home.internal;
 
-import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalTime;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +31,9 @@ import kr.weathertalk.member.TemperatureSensitivity;
 import kr.weathertalk.neighborhood.CurrentNeighborhood;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
+import kr.weathertalk.notification.DepartureTimes;
+import kr.weathertalk.notification.DeviceCredential;
+import kr.weathertalk.notification.NotificationApi;
 import kr.weathertalk.outfit.DepartureCondition;
 import kr.weathertalk.outfit.OutfitApi;
 import kr.weathertalk.outfit.OutfitRecommendation;
@@ -42,7 +41,6 @@ import kr.weathertalk.outfit.Precipitation;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
-import kr.weathertalk.shared.time.TimeConfig;
 import kr.weathertalk.weather.CurrentObservation;
 import kr.weathertalk.weather.DailyForecast;
 import kr.weathertalk.weather.FieldReportStatus;
@@ -65,27 +63,27 @@ class HomeComposer implements HomeApi {
 	private final FeelingApi feelingApi;
 	private final OutfitApi outfitApi;
 	private final CommunityApi communityApi;
+	private final NotificationApi notificationApi;
 	private final SectionRunner sections;
 	private final HomeProperties properties;
-	private final Clock clock;
 
 	HomeComposer(NeighborhoodApi neighborhoodApi, WeatherApi weatherApi, MemberApi memberApi, FeelingApi feelingApi,
-			OutfitApi outfitApi, CommunityApi communityApi, SectionRunner sections, HomeProperties properties,
-			Clock clock) {
+			OutfitApi outfitApi, CommunityApi communityApi, NotificationApi notificationApi, SectionRunner sections,
+			HomeProperties properties) {
 		this.neighborhoodApi = neighborhoodApi;
 		this.weatherApi = weatherApi;
 		this.memberApi = memberApi;
 		this.feelingApi = feelingApi;
 		this.outfitApi = outfitApi;
 		this.communityApi = communityApi;
+		this.notificationApi = notificationApi;
 		this.sections = sections;
 		this.properties = properties;
-		this.clock = clock;
 	}
 
 	@Override
 	public HomeView compose(Requester requester, NeighborhoodId neighborhoodId,
-			TemperatureSensitivity deviceSensitivity, List<LocalTime> departureTimes) {
+			TemperatureSensitivity deviceSensitivity, DeviceCredential device) {
 		Requester.Member member = requester instanceof Requester.Member m ? m : null;
 		Optional<CurrentNeighborhood> current = member != null ? neighborhoodApi.findCurrentNeighborhood(member.memberId())
 				: Optional.empty();
@@ -121,10 +119,10 @@ class HomeComposer implements HomeApi {
 				o -> false);
 		CompletableFuture<HomeSection<YesterdayComparison>> yesterday = sections.after("yesterday-comparison",
 				feelings, f -> feelingApi.compareWithYesterday(id, basis, null), c -> !c.comparable());
-		CompletableFuture<HomeSection<DepartureOutfit>> departure = departureTimes == null || departureTimes.isEmpty()
+		CompletableFuture<HomeSection<DepartureOutfit>> departure = device == null
 				? null
 				: sections.after("departure-outfit", feelings,
-						f -> departure(id, basis, departureTimes, SectionRunner.join(hourly).data()),
+						f -> departure(id, basis, device, SectionRunner.join(hourly).data()),
 						d -> d.recommendation() == null);
 		CompletableFuture<HomeSection<List<PostSummary>>> popular = sections.start("popular-posts",
 				() -> communityApi.findPopularPosts(id, requester)
@@ -168,28 +166,23 @@ class HomeComposer implements HomeApi {
 	}
 
 	/**
-	 * 외출 시각 기준: 각 외출 시각의 다음 도래 시각(이번 시(時)가 지났으면 내일)으로 기준 그룹 체감을 조회해 outfit에 넘긴다.
-	 * 다음 외출 시각 선택은 M7부터 notification `기기의 외출 시각 조회`가 맡는다.
+	 * 외출 시각 기준: notification `기기의 외출 시각 조회`가 정한 각 외출 시각의 다음 도래 시각으로 기준 그룹 체감을 조회해 outfit에 넘긴다.
+	 * 다음 외출 시각 선택 규칙은 notification 소유다(contracts §2.7) — home은 결과를 표시만 한다. 기기에 외출 시각이 없으면 빈 섹션.
 	 */
-	private DepartureOutfit departure(NeighborhoodId id, TemperatureSensitivity basis, List<LocalTime> times,
+	private DepartureOutfit departure(NeighborhoodId id, TemperatureSensitivity basis, DeviceCredential device,
 			HourlyForecast hourly) {
-		ZonedDateTime now = clock.instant().atZone(TimeConfig.SEOUL);
-		ZonedDateTime currentHour = now.truncatedTo(ChronoUnit.HOURS);
+		DepartureTimes times = notificationApi.findDepartureTimes(device);
 		List<DepartureOutfit.Departure> departures = new ArrayList<>();
 		List<DepartureCondition> conditions = new ArrayList<>();
-		times.stream().distinct().sorted().forEach(time -> {
-			ZonedDateTime at = now.toLocalDate().atTime(time).atZone(TimeConfig.SEOUL);
-			if (at.truncatedTo(ChronoUnit.HOURS).isBefore(currentHour)) {
-				at = at.plusDays(1);
-			}
-			Instant departureAt = at.toInstant();
+		for (DepartureTimes.Departure time : times.departures()) {
+			Instant departureAt = time.nextAt();
 			Optional<SensitivityFeeling> feeling = feelingApi.findSensitivityFeeling(id, basis, departureAt);
 			feeling.ifPresent(f -> {
 				departures.add(new DepartureOutfit.Departure(departureAt, f));
 				conditions.add(new DepartureCondition(departureAt, f.temperatureTag().level(),
 						precipitationAt(hourly, f.basisTime())));
 			});
-		});
+		}
 		return new DepartureOutfit(departures,
 				conditions.isEmpty() ? null : outfitApi.recommendForDepartures(conditions));
 	}

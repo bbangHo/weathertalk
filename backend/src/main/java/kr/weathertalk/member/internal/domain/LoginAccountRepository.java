@@ -12,6 +12,8 @@ public interface LoginAccountRepository extends JpaRepository<LoginAccount, UUID
 
 	Optional<LoginAccount> findByProviderAndProviderUserId(AuthProvider provider, String providerUserId);
 
+	boolean existsByProviderAndProviderUserId(AuthProvider provider, String providerUserId);
+
 	List<LoginAccount> findByMemberId(UUID memberId);
 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
