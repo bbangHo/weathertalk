@@ -60,6 +60,8 @@ dependencies {
 	testImplementation 'org.springframework.modulith:spring-modulith-docs'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	// 외부 날씨 원천(기상청·에어코리아) 모의 서버. Jetty를 내장 셰이딩한 standalone이라 Boot의 Jetty/Jackson 버전과 충돌하지 않는다.
+	testImplementation 'org.wiremock:wiremock-standalone:3.13.1'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

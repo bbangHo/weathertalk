@@ -1,0 +1,14 @@
+# 통합 테스트(@IntegrationTest, test 프로파일) 전용 값. 외부 원천 주소·키는 IntegrationTestConfiguration이 WireMock으로 채운다.
+weather:
+  external:
+    # 장애·지연 시나리오가 빨리 끝나도록 짧게
+    timeout: 400ms
+    max-attempts: 2
+    retry-backoff: 10ms
+  source:
+    jobs:
+      # 정기 작업은 테스트가 서비스 메서드를 직접 불러 검증한다(배경 실행이 WireMock 호출 수를 흐트러뜨리지 않게)
+      enabled: false
+
+home:
+  section-timeout: 2s

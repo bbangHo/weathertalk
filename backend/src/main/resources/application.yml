@@ -137,6 +137,22 @@ weather:
   day-night:
     day-start: "06:00"
     night-start: "18:00"
+  # 외부 날씨 원천 연결(운영 파라미터 아님). 인증키가 비어 있어도 기동은 되고, 수집 시 '없음' 처리 + 경고 로그를 남긴다.
+  # 인증키는 공공데이터포털에서 받은 '일반 인증키(Decoding)' 값을 환경 변수로 넣는다(코드·저장소에 두지 않는다).
+  source:
+    kma:
+      # DATA_GO_KR: 공공데이터포털(serviceKey) / API_HUB: 기상청 API허브(authKey, base-url은 https://apihub.kma.go.kr/api/typ02/openApi)
+      provider: DATA_GO_KR
+      base-url: https://apis.data.go.kr/1360000
+      # 필요: 기상청_단기예보 조회서비스, 기상청_중기예보 조회서비스, 기상청_생활기상지수 조회서비스(자외선) 활용신청
+      service-key: ${WEATHER_KMA_SERVICE_KEY:}
+    air-korea:
+      base-url: https://apis.data.go.kr/B552584
+      # 필요: 한국환경공단_에어코리아_대기오염정보, 한국환경공단_에어코리아_측정소정보 활용신청
+      service-key: ${WEATHER_AIRKOREA_SERVICE_KEY:}
+    jobs:
+      # 사전 갱신·중기 정기 수집·정리 정기 작업 등록 여부
+      enabled: true
 
 feeling:
   neighborhood-window: 2h

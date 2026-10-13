@@ -49,7 +49,15 @@ public enum ErrorCode {
 	NEIGHBORHOOD_NOT_RESOLVABLE(HttpStatus.UNPROCESSABLE_CONTENT),
 
 	/** 관심 동네 최대 개수를 넘는다(BR-NBR-08). */
-	INTEREST_NEIGHBORHOOD_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT);
+	INTEREST_NEIGHBORHOOD_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT),
+
+	// ── home ──
+
+	/**
+	 * 홈에서 보는 동네를 정할 수 없다(동네 ID 없음·존재하지 않는 동네, 07 §1.4-4). 화면 전체 실패의 유일한 경우이며
+	 * 앱은 동네 검색으로 보낸다. 응답의 {@code reason}: NOT_SPECIFIED / NOT_FOUND.
+	 */
+	VIEWING_NEIGHBORHOOD_UNRESOLVED(HttpStatus.UNPROCESSABLE_CONTENT);
 
 	private final HttpStatus status;
 
