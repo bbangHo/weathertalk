@@ -3,6 +3,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { setActiveQueryClient } from '@/query/activeClient';
 import { createQueryClient } from '@/query/queryClient';
 import { sessionStore } from '@/session/sessionStore';
 
@@ -10,6 +11,7 @@ export function AppProviders({ children, queryClient }: { children: ReactNode; q
   const [client] = useState(() => queryClient ?? createQueryClient());
 
   useEffect(() => {
+    setActiveQueryClient(client);
     let previous = sessionStore.getState().status;
     const unsubscribe = sessionStore.subscribe(() => {
       const next = sessionStore.getState().status;
@@ -22,7 +24,10 @@ export function AppProviders({ children, queryClient }: { children: ReactNode; q
     if (sessionStore.getState().status === 'restoring') {
       sessionStore.restore().catch(() => sessionStore.becomeGuest());
     }
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      setActiveQueryClient(null);
+    };
   }, [client]);
 
   return (

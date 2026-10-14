@@ -4,6 +4,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
 import { AuthGate } from '@/auth/AuthGate';
+// 좋아요 보류 행동의 자동 적용 처리기를 앱 시작 때 등록한다(07 §3 규칙 4).
+import '@/community/likes';
 import { AppLifecycle } from '@/entry/AppLifecycle';
 import { AppProviders } from '@/providers/AppProviders';
 import { colors } from '@/theme';

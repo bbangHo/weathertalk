@@ -46,10 +46,16 @@ export type StoredPendingAction = {
   payload: unknown;
 };
 
+/** 초안의 이미지 한 장: 올리기 전이면 기기 사본 주소, 올렸으면 이미지 ID(미첨부 이미지, 서버 orphan-ttl 동안 유효) */
+export type StoredDraftImage = {
+  localUri: string | null;
+  imageId: string | null;
+};
+
 /** 작성 초안 (SCR-08): 본문·이미지 참조·첨부 체감 기록 */
 export type StoredPostDraft = {
   body: string;
-  imageIds: string[];
+  images: StoredDraftImage[];
   feelingRecordId: string | null;
   savedAt: string;
 };

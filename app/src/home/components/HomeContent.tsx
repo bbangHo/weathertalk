@@ -9,6 +9,7 @@ import { colors, radii, spacing } from '@/theme';
 import { kstTimeText } from '../format';
 import type { HomeView } from '../types';
 
+import { PopularPostsSection } from './PopularPostsSection';
 import { CalibrationOfferCard, OutfitSection, SensitivityFeelingsSection, YesterdaySection } from './FeelingSections';
 import { CurrentWeatherSection, DailyForecastSection, HourlyForecastSection, WeatherAttribution } from './WeatherSections';
 
@@ -99,7 +100,7 @@ export function HomeContent({
       {/* 현장 제보 현황은 A4에서 이 자리에 넣는다. */}
       <HourlyForecastSection section={home.hourlyForecast} onRetry={retry} />
       <DailyForecastSection section={home.dailyForecast} onRetry={retry} />
-      {/* 동네 인기글은 A3에서 이 자리에 넣는다. */}
+      <PopularPostsSection home={home} viewingKind={viewingKind} onRetry={retry} />
       <WeatherAttribution />
     </ScrollView>
   );

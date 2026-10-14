@@ -1,11 +1,13 @@
-import { PlaceholderScreen } from '@/components/ui';
+import { Stack, useLocalSearchParams } from 'expo-router';
 
-export default function PostEditorScreen() {
+import { PostEditorScreen } from '@/community/PostEditorScreen';
+
+export default function PostEditorRoute() {
+  const { postId, feelingRecordId } = useLocalSearchParams<{ postId?: string; feelingRecordId?: string }>();
   return (
-    <PlaceholderScreen
-      code="SCR-08"
-      title="게시글 작성·수정"
-      description="현재 동네에 글을 쓰거나 내 글을 고쳐요."
-    />
+    <>
+      <Stack.Screen options={{ title: postId ? '글 고치기' : '글쓰기' }} />
+      <PostEditorScreen postId={postId || undefined} feelingRecordId={feelingRecordId || undefined} />
+    </>
   );
 }

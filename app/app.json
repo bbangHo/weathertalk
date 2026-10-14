@@ -38,6 +38,16 @@
         {
           "locationWhenInUsePermission": "지금 있는 동네를 찾는 데만 위치를 써요. 위치는 저장하지 않아요."
         }
+      ],
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "게시글에 올릴 사진을 고르는 데 써요.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "scheme": "weathertalk"

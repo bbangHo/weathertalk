@@ -160,7 +160,7 @@ describe('복원 (§3 규칙 4)', () => {
 describe('가입 중 앱 종료 후 재시작 (§3 규칙 6)', () => {
   it('비회원이면 보류 행동만 지우고 초안은 남긴다', async () => {
     await pendingActionStore.save(record);
-    const draft = { body: '초안', imageIds: [], feelingRecordId: null, savedAt: '2026-10-15T00:00:00Z' };
+    const draft = { body: '초안', images: [], feelingRecordId: null, savedAt: '2026-10-15T00:00:00Z' };
     await generalStore.set('postDraft', draft);
 
     await expect(resumePendingOnLaunch(false)).resolves.toEqual({ status: 'none' });

@@ -37,6 +37,13 @@ export function createWriteGate(deps: WriteGateDeps) {
       return true;
     },
 
+    /** 보류 행동 없이 가입 시트만 연다(마이페이지 가입 카드, §3.1 마이페이지 행). 회원이면 아무것도 안 한다. */
+    openSignup(): void {
+      if (deps.sessionStatus() !== 'member') {
+        deps.openSheet('signup');
+      }
+    },
+
     /**
      * 쓰기 요청이 가입 필요·재동의 필요로 거절됐을 때(토큰 만료로 비회원이 됐거나 앱이 모르던 재동의).
      * @returns 처리했으면 true — 화면은 오류 문구 대신 입력만 유지한다

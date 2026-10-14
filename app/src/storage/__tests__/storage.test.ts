@@ -80,7 +80,7 @@ describe('토큰은 한 항목으로 함께 저장', () => {
       refreshToken: 'r',
       refreshTokenExpiresAt: 'y',
     });
-    await generalStore.set('postDraft', { body: '초안', imageIds: [], feelingRecordId: null, savedAt: 'x' });
+    await generalStore.set('postDraft', { body: '초안', images: [], feelingRecordId: null, savedAt: 'x' });
 
     await sessionStore.expire();
 
@@ -105,7 +105,7 @@ describe('로그아웃·탈퇴 후 정리 (07 §6.2)', () => {
     await generalStore.set('currentNeighborhood', { neighborhoodId: 'n1', resolvedAt: 'x' });
     await generalStore.set('lastViewedNeighborhood', { neighborhoodId: 'n1' });
     await generalStore.set('lastHomeResponse', { neighborhoodId: 'n1', savedAt: 'x', body: {} });
-    await generalStore.set('postDraft', { body: '초안', imageIds: [], feelingRecordId: null, savedAt: 'x' });
+    await generalStore.set('postDraft', { body: '초안', images: [], feelingRecordId: null, savedAt: 'x' });
     await generalStore.set('pushTokenRegistration', { pushToken: 'p' });
 
     await clearMemberDataOnSignOut();

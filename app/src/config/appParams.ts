@@ -16,6 +16,27 @@ export type AppParams = {
   maxInterestNeighborhoods: number;
   /** neighborhood.search-min-length: 동네 이름 검색 최소 글자 수(02 FR-NBR-07) */
   neighborhoodSearchMinLength: number;
+  /** community.max-images: 게시글 이미지 최대 장수(05 §7) */
+  maxPostImages: number;
+  /** community.post.min-length: 본문 최소 길이(공백 제외, 코드 포인트) */
+  postMinLength: number;
+  /** community.post.max-length: 본문 최대 길이(앞뒤 공백 제외, 코드 포인트) */
+  postMaxLength: number;
+  /** community.comment.max-length: 댓글·답글 최대 길이 */
+  commentMaxLength: number;
+  /** community.image.max-file-size: 이미지 한 장 최대 크기(바이트) */
+  imageMaxFileSize: number;
+  /** community.image.max-dimension: 서버 저장 긴 변. 앱도 올리기 전에 이 크기로 줄여 전송량을 아낀다 */
+  imageMaxDimension: number;
+  /** community.feed.page-size: 피드·내가 쓴 글 한 페이지 개수 */
+  feedPageSize: number;
+  /** home.popular-posts-count: 홈 인기글 카드 수 */
+  homePopularPostsCount: number;
+  /** member.nickname.min-length / max-length (01 BR-MEM-15) */
+  nicknameMinLength: number;
+  nicknameMaxLength: number;
+  /** 마이페이지 미리보기(내가 쓴 글·내 체감 기록) 개수 */
+  myPagePreviewCount: number;
 };
 
 export const DEFAULT_APP_PARAMS: Readonly<AppParams> = Object.freeze({
@@ -25,6 +46,17 @@ export const DEFAULT_APP_PARAMS: Readonly<AppParams> = Object.freeze({
   permissionPrepromptCooldownMs: 7 * DAY,
   maxInterestNeighborhoods: 5,
   neighborhoodSearchMinLength: 1,
+  maxPostImages: 4,
+  postMinLength: 1,
+  postMaxLength: 1000,
+  commentMaxLength: 200,
+  imageMaxFileSize: 10 * 1024 * 1024,
+  imageMaxDimension: 2048,
+  feedPageSize: 20,
+  homePopularPostsCount: 5,
+  nicknameMinLength: 2,
+  nicknameMaxLength: 10,
+  myPagePreviewCount: 3,
 });
 
 let current: AppParams = { ...DEFAULT_APP_PARAMS };

@@ -1,6 +1,7 @@
 // 홈 조합 응답 형식 (07 §1.2·§10~12, backend home/HomeView·HomeSection·ViewingNeighborhood·PersonalBasis,
 // weather/CurrentObservation·HourlyForecast·DailyForecast). 시각(Instant)은 ISO 문자열, 날짜(LocalDate)는 YYYY-MM-DD.
 // 값이 없는 항목은 null이다 — 앱은 기본값으로 채우지 않는다(07 §5 값 없음 표시).
+import type { PostSummary } from '@/community/types';
 import type {
   CalibrationOffer,
   FeedbackStatus,
@@ -184,7 +185,7 @@ export type DepartureOutfit = {
 };
 
 /**
- * 홈 조합 응답. 인기글·차이 배지·현장 제보 현황은 A3~A4가 자기 형식을 정할 때까지 unknown으로 둔다. null인 섹션은 조회하지 않은 것(생략)이다.
+ * 홈 조합 응답. 차이 배지·현장 제보 현황은 A4가 자기 형식을 정할 때까지 unknown으로 둔다. null인 섹션은 조회하지 않은 것(생략)이다.
  */
 export type HomeView = {
   neighborhood: ViewingNeighborhood;
@@ -199,7 +200,8 @@ export type HomeView = {
   yesterdayComparison: HomeSection<YesterdayComparison>;
   /** 기기 헤더가 없으면 null */
   departureOutfit: HomeSection<DepartureOutfit> | null;
-  popularPosts: HomeSection<unknown>;
+  /** 동네 인기글(community 선정 그대로). 0건이면 EMPTY — 최신글로 채우지 않는다 */
+  popularPosts: HomeSection<PostSummary[]>;
   divergence: HomeSection<unknown>;
   fieldReports: HomeSection<unknown>;
   /** 비회원은 null */

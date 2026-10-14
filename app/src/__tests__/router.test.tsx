@@ -59,7 +59,9 @@ describe('라우트 골격', () => {
 
     await testRouter.push(pathOf(routes.postDetail('p1')));
     expect(screen).toHavePathname('/community/p1');
-    expect(await screen.findByText('SCR-07')).toBeTruthy();
+    // A3에서 자리표시 화면이 실제 게시글 상세로 바뀌었다(서버가 응답하지 않아 오류 + 다시 시도).
+    // 5xx는 한 번 더 시도한 뒤 오류를 보여준다.
+    expect(await screen.findByText('글을 불러오지 못했어요', {}, { timeout: 5000 })).toBeTruthy();
 
     await testRouter.push(pathOf(routes.feelingRecord()));
     expect(screen).toHavePathname('/feeling-record');
