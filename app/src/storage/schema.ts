@@ -35,10 +35,14 @@ export type PermissionPrepromptHistory = {
   notificationDeclinedAt?: string;
 };
 
-/** 보류 행동 (07 §3). 내용 형식은 행동별로 A1~A5가 정한다. */
+/** 보류 행동 (07 §3). 내용 형식은 행동별로 정하고(src/pending), 하나만 보관해 새 가입 유도 때 덮어쓴다. */
 export type StoredPendingAction = {
   kind: string;
   savedAt: string;
+  /** 복귀할 화면 경로(예: '/feeling-record') */
+  route: string;
+  /** 행동 당시 보던 동네(현재 동네여야 하는 행동의 일치 확인용). 없으면 null */
+  neighborhoodId: string | null;
   payload: unknown;
 };
 

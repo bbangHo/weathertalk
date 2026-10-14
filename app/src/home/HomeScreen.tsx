@@ -37,6 +37,7 @@ function Loading() {
 
 function HomeBody() {
   const viewing = useViewingState();
+  const session = useSession();
   const { query, enabled, home, cachedSavedAt } = useHome();
   const interests = useInterestNeighborhoods();
   const [pulling, setPulling] = useState(false);
@@ -95,6 +96,7 @@ function HomeBody() {
         refreshing={pulling}
         onRefresh={refresh}
         onOpenSwitch={() => router.push(routes.neighborhoodSwitch())}
+        isMember={session.status === 'member'}
       />
     </SafeAreaView>
   );

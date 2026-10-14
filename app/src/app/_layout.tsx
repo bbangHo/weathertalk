@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
+import { AuthGate } from '@/auth/AuthGate';
 import { AppLifecycle } from '@/entry/AppLifecycle';
 import { AppProviders } from '@/providers/AppProviders';
 import { colors } from '@/theme';
@@ -14,6 +15,7 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <AppLifecycle />
+      <AuthGate />
       <StatusBar style="dark" />
       <Stack
         screenOptions={{

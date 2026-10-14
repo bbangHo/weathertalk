@@ -1,6 +1,8 @@
 // 홈 응답 테스트 데이터 (backend HomeView 형식)
+import type { DerivationSource, SensitivityFeeling, TemperatureTagName } from '@/feeling/types';
 import type { HomeSection, HomeView, HourlyForecastSlot } from '@/home/types';
 import type { NeighborhoodResponse } from '@/neighborhood/types';
+import type { TemperatureSensitivity } from '@/storage';
 
 export function neighborhoodResponse(id: string, eupmyeondong: string): NeighborhoodResponse {
   return {
@@ -35,7 +37,50 @@ export function slot(date: string, hour: number, temperature: number): HourlyFor
   };
 }
 
-const omitted: HomeSection<unknown> = { status: 'EMPTY', data: null, failure: null };
+function omitted<T>(): HomeSection<T> {
+  return { status: 'EMPTY', data: null, failure: null };
+}
+
+export function ok<T>(data: T): HomeSection<T> {
+  return { status: 'OK', data, failure: null };
+}
+
+/** 현재 시각 기준 민감도별 체감 한 그룹 (backend SensitivityFeeling) */
+export function feeling(
+  group: TemperatureSensitivity,
+  temperatureTag: TemperatureTagName,
+  source: DerivationSource = 'NEIGHBORHOOD_FEELING',
+  neighborhoodId = 'N1',
+): SensitivityFeeling {
+  return {
+    neighborhoodId: { value: neighborhoodId },
+    temperatureSensitivity: group,
+    basisTime: '2026-10-15T03:00:00Z',
+    timeKind: 'CURRENT',
+    temperatureTag,
+    humidityTag: source === 'REFERENCE_TABLE' ? null : 'COMFORTABLE',
+    windTag: null,
+    source,
+    sampleCount: source === 'REFERENCE_TABLE' ? null : 12,
+    mappingVersion: source === 'FEELING_MAPPING' ? 3 : null,
+    mappingLayer: null,
+    weatherBasedTemperatureTag: 'JUST_RIGHT',
+    derivedAt: '2026-10-15T03:10:00Z',
+  };
+}
+
+/** 세 그룹 모두 산출된 민감도별 체감 섹션 */
+export function sensitivityFeelingsOk(neighborhoodId = 'N1'): HomeView['sensitivityFeelings'] {
+  return ok({
+    neighborhoodId: { value: neighborhoodId },
+    basisTime: '2026-10-15T03:00:00Z',
+    groups: [
+      feeling('HEAT_SENSITIVE', 'SLIGHTLY_HOT', 'NEIGHBORHOOD_FEELING', neighborhoodId),
+      feeling('NORMAL', 'JUST_RIGHT', 'FEELING_MAPPING', neighborhoodId),
+      feeling('COLD_SENSITIVE', 'SLIGHTLY_COLD', 'REFERENCE_TABLE', neighborhoodId),
+    ],
+  });
+}
 
 export function homeView(overrides: Partial<HomeView> = {}): HomeView {
   return {
@@ -121,14 +166,14 @@ export function homeView(overrides: Partial<HomeView> = {}): HomeView {
       },
     },
     personal: { highlightedGroup: null, basisGroup: 'NORMAL', selectionSuggested: true },
-    sensitivityFeelings: omitted,
+    sensitivityFeelings: omitted(),
     feedbackStatus: null,
-    outfit: omitted,
-    yesterdayComparison: omitted,
+    outfit: omitted(),
+    yesterdayComparison: omitted(),
     departureOutfit: null,
-    popularPosts: omitted,
-    divergence: omitted,
-    fieldReports: omitted,
+    popularPosts: omitted(),
+    divergence: omitted(),
+    fieldReports: omitted(),
     calibrationOffer: null,
     ...overrides,
   };

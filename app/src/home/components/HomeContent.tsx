@@ -1,4 +1,5 @@
 // SCR-01 홈 화면 본문 (07 SCR-01). 데이터 조회와 분리한 표시 전용 컴포넌트.
+import { useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Button } from '@/components/ui';
@@ -8,6 +9,7 @@ import { colors, radii, spacing } from '@/theme';
 import { kstTimeText } from '../format';
 import type { HomeView } from '../types';
 
+import { CalibrationOfferCard, OutfitSection, SensitivityFeelingsSection, YesterdaySection } from './FeelingSections';
 import { CurrentWeatherSection, DailyForecastSection, HourlyForecastSection, WeatherAttribution } from './WeatherSections';
 
 export type HomeContentProps = {
@@ -20,6 +22,8 @@ export type HomeContentProps = {
   refreshing: boolean;
   onRefresh: () => void;
   onOpenSwitch: () => void;
+  /** 회원이면 피드백을 바로 저장하고 보정 제안 카드를 보여준다. 기본 비회원 */
+  isMember?: boolean;
 };
 
 const KIND_LABEL: Record<ViewingKind, string> = {
@@ -36,12 +40,16 @@ export function HomeContent({
   refreshing,
   onRefresh,
   onOpenSwitch,
+  isMember = false,
 }: HomeContentProps) {
+  const scrollRef = useRef<ScrollView>(null);
+  const feelingsY = useRef(0);
   const neighborhood = home.neighborhood;
   // 섹션별 다시 시도는 home 전체 재조회로 한다(07 §1.4-5).
   const retry = () => onRefresh();
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       testID="home-scroll"
@@ -77,7 +85,18 @@ export function HomeContent({
       ) : null}
 
       <CurrentWeatherSection section={home.currentWeather} onRetry={retry} />
-      {/* 민감도별 체감·피드백·차이 배지·옷 추천·어제 비교·현장 제보 현황은 A2~A4에서 이 자리에 넣는다. */}
+      {isMember ? <CalibrationOfferCard section={home.calibrationOffer} /> : null}
+      <View onLayout={(event) => (feelingsY.current = event.nativeEvent.layout.y)}>
+        <SensitivityFeelingsSection home={home} viewingKind={viewingKind} isMember={isMember} onRetry={retry} />
+      </View>
+      {/* 예보 vs 주민 차이 배지는 A4에서 이 자리에 넣는다. */}
+      <OutfitSection
+        home={home}
+        onRetry={retry}
+        onPickSensitivity={() => scrollRef.current?.scrollTo({ y: feelingsY.current, animated: true })}
+      />
+      <YesterdaySection home={home} onRetry={retry} />
+      {/* 현장 제보 현황은 A4에서 이 자리에 넣는다. */}
       <HourlyForecastSection section={home.hourlyForecast} onRetry={retry} />
       <DailyForecastSection section={home.dailyForecast} onRetry={retry} />
       {/* 동네 인기글은 A3에서 이 자리에 넣는다. */}

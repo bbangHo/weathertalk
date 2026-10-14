@@ -1,4 +1,5 @@
 // SCR-01 날씨 섹션 표시: 섹션 상태, 값 없음 "정보 없음", 시간별 중복 유지·날짜 경계, 출처 표시
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -11,19 +12,23 @@ import type { CurrentObservation, HomeView } from '../types';
 function renderHome(home: HomeView, props: Partial<HomeContentProps> = {}) {
   const onRefresh = jest.fn();
   const onOpenSwitch = jest.fn();
+  // A2부터 홈 본문에 체감 피드백·보정 제안처럼 서버 캐시를 쓰는 영역이 있어 쿼리 제공자로 감싼다.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <HomeContent
-        home={home}
-        viewingKind="current"
-        cachedSavedAt={null}
-        refreshFailed={false}
-        refreshing={false}
-        onRefresh={onRefresh}
-        onOpenSwitch={onOpenSwitch}
-        {...props}
-      />
-    </SafeAreaProvider>,
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+        <HomeContent
+          home={home}
+          viewingKind="current"
+          cachedSavedAt={null}
+          refreshFailed={false}
+          refreshing={false}
+          onRefresh={onRefresh}
+          onOpenSwitch={onOpenSwitch}
+          {...props}
+        />
+      </SafeAreaProvider>
+    </QueryClientProvider>,
   );
   return { onRefresh, onOpenSwitch };
 }

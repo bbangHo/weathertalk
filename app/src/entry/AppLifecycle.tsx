@@ -2,6 +2,7 @@
 // - 스플래시: 세션 복원 + 기기 저장값 읽기가 끝나면 내린다. 홈은 마지막 홈 응답을 먼저 보여준다.
 // - 위치 권한이 있으면 app.location-refresh-interval 경과 시 현재 동네 재판정, 권한이 없어졌으면 현재 동네 삭제
 // - 기기 확인(실패해도 화면을 막지 않음)
+// - 가입 중 종료됐던 보류 행동: 회원이면 복원, 아니면 지움(07 §3 규칙 6)
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
@@ -13,6 +14,7 @@ import { homeCache } from '@/home/homeCache';
 import { getLocationPermission } from '@/location/deviceLocation';
 import { judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
 import { viewingStore } from '@/neighborhood/viewingStore';
+import { resumePendingOnLaunch } from '@/pending/restore';
 import { sessionStore } from '@/session/sessionStore';
 
 import { decideEntry, shouldRejudge } from './entryDecision';
@@ -93,6 +95,8 @@ export function AppLifecycle() {
           SplashScreen.hide();
         }
         void syncDevice(api);
+        // 가입 중 앱이 종료됐던 경우(07 §3 규칙 6)
+        resumePendingOnLaunch(isMember()).catch(() => undefined);
       });
 
     let previous = AppState.currentState;

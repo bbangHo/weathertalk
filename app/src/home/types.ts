@@ -1,6 +1,13 @@
 // 홈 조합 응답 형식 (07 §1.2·§10~12, backend home/HomeView·HomeSection·ViewingNeighborhood·PersonalBasis,
 // weather/CurrentObservation·HourlyForecast·DailyForecast). 시각(Instant)은 ISO 문자열, 날짜(LocalDate)는 YYYY-MM-DD.
 // 값이 없는 항목은 null이다 — 앱은 기본값으로 채우지 않는다(07 §5 값 없음 표시).
+import type {
+  CalibrationOffer,
+  FeedbackStatus,
+  SensitivityFeeling,
+  SensitivityFeelings,
+  YesterdayComparison,
+} from '@/feeling/types';
 import type { TemperatureSensitivity } from '@/storage';
 
 export type SectionStatus = 'OK' | 'EMPTY' | 'FAILED';
@@ -154,9 +161,30 @@ export type PersonalBasis = {
   selectionSuggested: boolean;
 };
 
+/** outfit OutfitRecommendation·Outfit (옷 추천). 빈 목록은 "없음" */
+export type OutfitPrecipitation = 'NONE' | 'RAIN' | 'SNOW';
+export type Outfit = { outer: string[]; top: string[]; bottom: string[]; accessories: string[]; guide: string | null };
+export type OutfitRecommendation = {
+  temperatureLevel: number;
+  precipitation: OutfitPrecipitation | null;
+  outfit: Outfit;
+  tableVersion: string;
+};
+
+/** home DepartureOutfit: 외출 시각별 기준 그룹 체감과 외출 시각 옷 추천 */
+export type DepartureOutfit = {
+  departures: { departureAt: string; feeling: SensitivityFeeling }[];
+  recommendation: {
+    recommendation: OutfitRecommendation;
+    layeringAdvised: boolean;
+    layeringGuide: string | null;
+    basisDepartureAt: string;
+    basisTemperatureLevel: number;
+  } | null;
+};
+
 /**
- * 홈 조합 응답. A1은 날씨 섹션(currentWeather·hourlyForecast·dailyForecast)만 화면에 쓴다.
- * 나머지 섹션은 A2~A4가 자기 형식을 정할 때까지 unknown으로 둔다. null인 섹션은 조회하지 않은 것(생략)이다.
+ * 홈 조합 응답. 인기글·차이 배지·현장 제보 현황은 A3~A4가 자기 형식을 정할 때까지 unknown으로 둔다. null인 섹션은 조회하지 않은 것(생략)이다.
  */
 export type HomeView = {
   neighborhood: ViewingNeighborhood;
@@ -164,16 +192,16 @@ export type HomeView = {
   hourlyForecast: HomeSection<HourlyForecast>;
   dailyForecast: HomeSection<DailyForecast>;
   personal: PersonalBasis;
-  sensitivityFeelings: HomeSection<unknown>;
+  sensitivityFeelings: HomeSection<SensitivityFeelings>;
   /** 비회원은 null */
-  feedbackStatus: HomeSection<unknown> | null;
-  outfit: HomeSection<unknown>;
-  yesterdayComparison: HomeSection<unknown>;
+  feedbackStatus: HomeSection<FeedbackStatus> | null;
+  outfit: HomeSection<OutfitRecommendation>;
+  yesterdayComparison: HomeSection<YesterdayComparison>;
   /** 기기 헤더가 없으면 null */
-  departureOutfit: HomeSection<unknown> | null;
+  departureOutfit: HomeSection<DepartureOutfit> | null;
   popularPosts: HomeSection<unknown>;
   divergence: HomeSection<unknown>;
   fieldReports: HomeSection<unknown>;
   /** 비회원은 null */
-  calibrationOffer: HomeSection<unknown> | null;
+  calibrationOffer: HomeSection<CalibrationOffer> | null;
 };

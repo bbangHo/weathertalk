@@ -24,7 +24,7 @@ import type { CurrentObservation, DailyForecast, HomeSection, HourlyForecast } f
 
 type SectionProps<T> = { section: HomeSection<T>; onRetry: () => void | Promise<unknown> };
 
-function Card({ title, children, testID }: { title: string; children: ReactNode; testID?: string }) {
+export function Card({ title, children, testID }: { title: string; children: ReactNode; testID?: string }) {
   return (
     <View style={styles.card} testID={testID}>
       <AppText variant="heading">{title}</AppText>

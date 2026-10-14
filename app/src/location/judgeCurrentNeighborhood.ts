@@ -2,7 +2,7 @@
 // 비회원은 저장 없는 판정(locate), 회원은 현재 동네 갱신(PUT members/me/current-neighborhood)으로 서버의 현재 동네도 맞춘다.
 import type { ApiClient } from '@/api/client';
 import { locateNeighborhood, refreshMemberCurrentNeighborhood } from '@/neighborhood/api';
-import type { NeighborhoodSummary } from '@/neighborhood/types';
+import type { LocationRequest, NeighborhoodSummary } from '@/neighborhood/types';
 import type { ViewingStore } from '@/neighborhood/viewingStore';
 
 import { getLocationForJudgement, getLocationPermission } from './deviceLocation';
@@ -17,6 +17,8 @@ export type JudgeDeps = {
   store: ViewingStore;
   isMember: boolean;
   now?: () => Date;
+  /** 쓰기 직전처럼 이미 받은 좌표가 있으면 다시 받지 않고 쓴다 */
+  location?: LocationRequest;
 };
 
 let inFlight: Promise<JudgeResult> | null = null;
@@ -31,13 +33,13 @@ export function judgeCurrentNeighborhood(deps: JudgeDeps): Promise<JudgeResult> 
   return inFlight;
 }
 
-async function run({ api, store, isMember, now = () => new Date() }: JudgeDeps): Promise<JudgeResult> {
+async function run({ api, store, isMember, now = () => new Date(), location }: JudgeDeps): Promise<JudgeResult> {
   const { permission } = await getLocationPermission();
   if (permission !== 'granted') {
     return { status: 'no-permission' };
   }
   try {
-    const neighborhood = await resolve(api, isMember);
+    const neighborhood = await resolve(api, isMember, location);
     if (!neighborhood) {
       return { status: 'failed', error: new Error('현재 동네를 찾지 못했어요.') };
     }
@@ -49,8 +51,12 @@ async function run({ api, store, isMember, now = () => new Date() }: JudgeDeps):
   }
 }
 
-async function resolve(api: ApiClient, isMember: boolean): Promise<NeighborhoodSummary | null> {
+async function resolve(
+  api: ApiClient,
+  isMember: boolean,
+  given: LocationRequest | undefined,
+): Promise<NeighborhoodSummary | null> {
   // 좌표는 이 함수 안의 지역 값으로만 존재한다.
-  const location = await getLocationForJudgement();
+  const location = given ?? (await getLocationForJudgement());
   return isMember ? refreshMemberCurrentNeighborhood(api, location) : locateNeighborhood(api, location);
 }

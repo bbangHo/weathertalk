@@ -63,7 +63,8 @@ describe('라우트 골격', () => {
 
     await testRouter.push(pathOf(routes.feelingRecord()));
     expect(screen).toHavePathname('/feeling-record');
-    expect(await screen.findByText('SCR-04')).toBeTruthy();
+    // A2에서 자리표시 화면이 실제 체감 기록 화면으로 바뀌었다.
+    expect(await screen.findByText('기록은 지금 있는 동네(현재 동네)에 남아요')).toBeTruthy();
 
     await testRouter.push(pathOf(routes.myFeelingRecords()));
     expect(screen).toHavePathname('/my/feeling-records');
