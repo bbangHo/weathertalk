@@ -24,7 +24,21 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "지금 있는 동네를 찾는 데만 위치를 써요. 위치는 저장하지 않아요."
+        }
+      ]
     ],
     "scheme": "weathertalk"
   }

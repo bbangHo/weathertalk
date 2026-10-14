@@ -1,15 +1,6 @@
-import { PlaceholderScreen } from '@/components/ui';
-import { routes } from '@/navigation/routes';
+import { NeighborhoodSwitchScreen } from '@/neighborhood/NeighborhoodSwitchScreen';
 
+/** SCR-02 관심 동네 관리(마이 탭): 전환 시트와 같은 화면을 편집 상태로 연다. */
 export default function InterestNeighborhoodsScreen() {
-  return (
-    <PlaceholderScreen
-      code="SCR-02"
-      title="관심 동네 관리"
-      description="관심 동네를 추가·삭제하고 순서를 바꿔요."
-      links={[
-        { label: '동네 추가', href: routes.neighborhoodSearch() },
-      ]}
-    />
-  );
+  return <NeighborhoodSwitchScreen mode="manage" />;
 }

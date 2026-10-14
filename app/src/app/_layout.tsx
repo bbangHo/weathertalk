@@ -1,13 +1,19 @@
 // 루트 스택: 하단 탭 + 어느 탭에서나 여는 모달 (07 §4, 규칙 1)
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
+import { AppLifecycle } from '@/entry/AppLifecycle';
 import { AppProviders } from '@/providers/AppProviders';
 import { colors } from '@/theme';
+
+// 세션 복원·기기 저장값 읽기가 끝날 때까지 스플래시를 유지한다(07 §2-9). 내리는 곳은 AppLifecycle.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
   return (
     <AppProviders>
+      <AppLifecycle />
       <StatusBar style="dark" />
       <Stack
         screenOptions={{

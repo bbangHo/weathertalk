@@ -12,6 +12,10 @@ export type AppParams = {
   writeLocationMaxAgeMs: number;
   /** app.permission-preprompt-cooldown: 권한 사전 안내 거절 후 재노출 간격(ms) */
   permissionPrepromptCooldownMs: number;
+  /** neighborhood.max-interest: 관심 동네 최대 개수(회원·비회원 공통, 02 BR-NBR-08). 서버 값과 같게 둔다. */
+  maxInterestNeighborhoods: number;
+  /** neighborhood.search-min-length: 동네 이름 검색 최소 글자 수(02 FR-NBR-07) */
+  neighborhoodSearchMinLength: number;
 };
 
 export const DEFAULT_APP_PARAMS: Readonly<AppParams> = Object.freeze({
@@ -19,6 +23,8 @@ export const DEFAULT_APP_PARAMS: Readonly<AppParams> = Object.freeze({
   locationRefreshIntervalMs: 10 * MINUTE,
   writeLocationMaxAgeMs: 5 * MINUTE,
   permissionPrepromptCooldownMs: 7 * DAY,
+  maxInterestNeighborhoods: 5,
+  neighborhoodSearchMinLength: 1,
 });
 
 let current: AppParams = { ...DEFAULT_APP_PARAMS };

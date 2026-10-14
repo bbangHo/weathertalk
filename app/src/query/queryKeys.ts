@@ -9,7 +9,9 @@ export const queryKeys = {
   neighborhood: {
     all: ['neighborhood'] as const,
     search: (keyword: string) => ['neighborhood', 'search', keyword] as const,
-    interest: () => ['neighborhood', 'interest'] as const,
+    /** 관심 동네. 회원(서버)과 비회원(기기)을 섞지 않게 범위를 키에 넣는다. */
+    interest: (scope?: 'member' | 'guest') =>
+      scope ? (['neighborhood', 'interest', scope] as const) : (['neighborhood', 'interest'] as const),
     detail: (neighborhoodId: string) => ['neighborhood', 'detail', neighborhoodId] as const,
   },
   community: {

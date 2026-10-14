@@ -1,8 +1,13 @@
 // 실제 src/app 라우트 구조로 루트 레이아웃이 그려지고 주요 경로가 열리는지 확인한다.
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 
+import { viewingStore } from '@/neighborhood/viewingStore';
 import { routes } from '@/navigation/routes';
+import { generalStore } from '@/storage';
+import { problem } from '@/test-utils/apiClient';
+import { installFetch } from '@/test-utils/globalFetch';
 
 import type { Href } from 'expo-router';
 
@@ -18,12 +23,20 @@ const APP_DIR = 'src/app';
 
 jest.setTimeout(30000);
 
+// 첫 실행을 마친 기기, 서버는 응답하지 않는 상태로 시작한다(홈은 '동네를 골라 주세요').
+beforeEach(async () => {
+  await AsyncStorage.clear();
+  viewingStore.reset();
+  await generalStore.set('onboardingCompleted', true);
+  installFetch(() => problem(503, 'TEMPORARILY_UNAVAILABLE'));
+});
+
 describe('라우트 골격', () => {
   it('홈 탭으로 시작하고 하단 탭과 남기기 버튼이 보인다', async () => {
     await renderRouter(APP_DIR);
 
     expect(screen).toHavePathname('/');
-    expect(await screen.findByText('SCR-01')).toBeTruthy();
+    expect(await screen.findByText('동네를 골라 주세요')).toBeTruthy();
     expect(screen.getByTestId('leave-tab-button')).toBeTruthy();
     expect(screen.getAllByText('커뮤니티').length).toBeGreaterThan(0);
     expect(screen.getAllByText('마이').length).toBeGreaterThan(0);
@@ -31,6 +44,7 @@ describe('라우트 골격', () => {
 
   it('남기기는 화면 이동 없이 선택 시트를 열고, 고르면 작성 모달로 간다', async () => {
     await renderRouter(APP_DIR);
+    await screen.findByText('동네를 골라 주세요');
 
     fireEvent.press(screen.getByTestId('leave-tab-button'));
     expect(screen).toHavePathname('/');
