@@ -1,5 +1,6 @@
-// SCR-01 홈 (07 SCR-01, §1.4-4, §2). 첫 실행이면 첫 실행 안내로, 보는 동네가 없으면 "동네를 골라 주세요".
-import { Redirect, router } from 'expo-router';
+// SCR-01 홈 (07 SCR-01, §1.4-4, §2, §7.3). 첫 실행이면 첫 실행 안내로, 보는 동네가 없으면 "동네를 골라 주세요".
+// 경로 파라미터 focus(hourly·field-report)면 그 섹션으로 스크롤해 강조한다.
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +14,7 @@ import { useSession } from '@/session/useSession';
 import { colors, spacing } from '@/theme';
 
 import { HomeContent } from './components/HomeContent';
+import { parseHomeFocus } from './focus';
 import { useHome } from './useHome';
 
 export function HomeScreen() {
@@ -42,6 +44,8 @@ function HomeBody() {
   const interests = useInterestNeighborhoods();
   const [pulling, setPulling] = useState(false);
   const handledErrorAt = useRef(0);
+  const params = useLocalSearchParams<{ focus?: string }>();
+  const focus = parseHomeFocus(params.focus);
 
   // 보는 동네를 정할 수 없으면(동네 ID 없음·없는 동네) 동네 검색으로 보낸다(07 §1.4-4). 같은 오류로 두 번 보내지 않는다.
   useEffect(() => {
@@ -97,6 +101,7 @@ function HomeBody() {
         onRefresh={refresh}
         onOpenSwitch={() => router.push(routes.neighborhoodSwitch())}
         isMember={session.status === 'member'}
+        focus={focus}
       />
     </SafeAreaView>
   );

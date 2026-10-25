@@ -24,9 +24,24 @@ import type { CurrentObservation, DailyForecast, HomeSection, HourlyForecast } f
 
 type SectionProps<T> = { section: HomeSection<T>; onRetry: () => void | Promise<unknown> };
 
-export function Card({ title, children, testID }: { title: string; children: ReactNode; testID?: string }) {
+export function Card({
+  title,
+  children,
+  testID,
+  emphasized = false,
+}: {
+  title: string;
+  children: ReactNode;
+  testID?: string;
+  /** 알림으로 들어와 이 섹션을 가리킬 때(07 §7.3) */
+  emphasized?: boolean;
+}) {
   return (
-    <View style={styles.card} testID={testID}>
+    <View
+      style={[styles.card, emphasized && styles.cardEmphasized]}
+      testID={testID}
+      accessibilityState={emphasized ? { selected: true } : undefined}
+    >
       <AppText variant="heading">{title}</AppText>
       {children}
     </View>
@@ -124,19 +139,26 @@ function CurrentWeatherBody({ observation }: { observation: CurrentObservation }
   );
 }
 
-export function HourlyForecastSection({ section, onRetry }: SectionProps<HourlyForecast>) {
+export function HourlyForecastSection({
+  section,
+  onRetry,
+  emphasized = false,
+}: SectionProps<HourlyForecast> & { emphasized?: boolean }) {
   const forecast = section.data;
   return (
-    <Card title="시간별 예보" testID="section-hourly">
+    <Card title="시간별 예보" testID="section-hourly" emphasized={emphasized}>
       <SectionState status={uiStatus(section)} emptyMessage="시간별 예보가 아직 없어요" onRetry={onRetry}>
-        {forecast ? <HourlyBody forecast={forecast} /> : null}
+        {forecast ? <HourlyBody forecast={forecast} emphasized={emphasized} /> : null}
       </SectionState>
     </Card>
   );
 }
 
-function HourlyBody({ forecast }: { forecast: HourlyForecast }) {
+/** 강수 예보 알림으로 들어오면 weather가 준 다음 강수 시작 칸을 강조한다(07 §7.3). 시작 시각은 판정하지 않고 받은 값과 같은 칸만 찾는다. */
+function HourlyBody({ forecast, emphasized }: { forecast: HourlyForecast; emphasized: boolean }) {
   const items = buildHourlyItems(forecast.slots);
+  const next = emphasized ? forecast.nextPrecipitation : null;
+  const startsAt = next ? Date.parse(next.startsAt) : NaN;
   const issued = kstTimeText(forecast.issuedAt);
   const freshness = freshnessText(forecast.freshness);
   return (
@@ -150,7 +172,11 @@ function HourlyBody({ forecast }: { forecast: HourlyForecast }) {
               </AppText>
             </View>
           ) : (
-            <View key={item.key} style={styles.hourlySlot} testID="hourly-slot">
+            <View
+              key={item.key}
+              style={[styles.hourlySlot, Date.parse(item.slot.forecastAt) === startsAt && styles.hourlySlotEmphasized]}
+              testID={Date.parse(item.slot.forecastAt) === startsAt ? 'hourly-slot-precipitation-start' : 'hourly-slot'}
+            >
               <AppText variant="caption" tone="secondary">
                 {`${item.slot.hour}시`}
               </AppText>
@@ -163,6 +189,11 @@ function HourlyBody({ forecast }: { forecast: HourlyForecast }) {
           ),
         )}
       </ScrollView>
+      {next ? (
+        <AppText testID="hourly-next-precipitation">
+          {`${kstTimeText(next.startsAt) ?? ''}부터 ${next.phrase ?? precipitationTypeText(next.type)} 예상`}
+        </AppText>
+      ) : null}
       <AppText variant="caption" tone="secondary">
         {[issued ? `${issued} 발표` : null, freshness].filter(Boolean).join(' · ') || ' '}
       </AppText>
@@ -219,6 +250,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
+  cardEmphasized: { borderColor: colors.primary, borderWidth: 2 },
   body: { gap: spacing.sm },
   hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   heroIcon: { fontSize: 44, lineHeight: 52 },
@@ -227,6 +259,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
   hourlyList: { gap: spacing.md, alignItems: 'stretch' },
   hourlySlot: { alignItems: 'center', gap: spacing.xs, minWidth: 44 },
+  hourlySlotEmphasized: { borderRadius: radii.md, borderWidth: 2, borderColor: colors.primary, paddingHorizontal: spacing.xs },
   dateMarker: {
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
