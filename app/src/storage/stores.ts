@@ -1,6 +1,5 @@
 // 기기 로컬 저장소 래퍼 (07 §6.1). 선언된 키만 읽고 쓴다.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
 
 import {
   GENERAL_KEYS,
@@ -11,6 +10,7 @@ import {
   type SecureSchema,
   STORAGE_KEY_PREFIX,
 } from './schema';
+import * as SecureStore from './secureBackend';
 
 export class UndeclaredStorageKeyError extends Error {
   constructor(key: string) {
