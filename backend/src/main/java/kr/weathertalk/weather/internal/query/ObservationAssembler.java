@@ -141,7 +141,10 @@ class ObservationAssembler {
 				Collections.unmodifiableMap(sources), weatherFreshness, airQuality, uvIndex, dn);
 	}
 
-	/** 그 시각 이전 발표분 중 쓸 수 있는(신선도가 '없음'이 아닌) 최신 발표분에서 그 시각 칸. */
+	/**
+	 * 그 시각 이전 발표분 중 쓸 수 있는(신선도가 '없음'이 아닌) 최신 발표분에서 그 시각 칸.
+	 * 발표분은 발표 시각 다음 시부터 칸이 있어 발표 직후 한 시간은 그 시각 칸이 없다. 그때는 직전 발표분의 칸을 쓴다.
+	 */
 	private SourceData.ShortTermSlot forecastSlot(ForecastGrid grid, Instant hour, Instant at) {
 		Optional<ShortTermStore.Issue> issue = shortTerms.findLatestIssuedAtOrBefore(grid, at);
 		if (issue.isEmpty()) {
@@ -152,7 +155,11 @@ class ObservationAssembler {
 		if (freshness.shortTerm(issue.get().issuedAt(), at, remaining) == Freshness.NONE) {
 			return null;
 		}
-		return slots.stream().filter(s -> s.forecastAt().equals(hour)).findFirst().orElse(null);
+		return slots.stream()
+			.filter(s -> s.forecastAt().equals(hour))
+			.findFirst()
+			.or(() -> shortTerms.findSlot(grid, hour, issue.get().issuedAt()))
+			.orElse(null);
 	}
 
 	private AirQuality airQuality(Neighborhood neighborhood, Instant at, boolean collectIfStale) {

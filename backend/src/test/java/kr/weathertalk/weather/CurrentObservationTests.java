@@ -13,6 +13,7 @@ import static kr.weathertalk.weather.WeatherStubs.ncstRequested;
 import static kr.weathertalk.weather.WeatherStubs.vilageRequested;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,14 +23,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import kr.weathertalk.IntegrationTest;
+import kr.weathertalk.weather.internal.source.SourceData;
+import kr.weathertalk.weather.internal.store.ShortTermStore;
 
 /**
  * 현재 관측 조회 (FR-WEA-01), 요청 시 수집 (FR-WEA-06), 신선도 (BR-WEA-03~05), 동시 수집 방지 (BR-WEA-07).
  */
 @IntegrationTest
 class CurrentObservationTests extends WeatherTestBase {
+
+	@Autowired
+	ShortTermStore shortTermStore;
 
 	private void stubNormalSources() {
 		stubs.observation(N7_GRID, kst("2026-10-13T09:00"),
@@ -266,6 +273,30 @@ class CurrentObservationTests extends WeatherTestBase {
 		assertThat(o.dayNight()).isEqualTo(DayNight.NIGHT);
 		assertThat(o.uv()).isNull();
 		server.verify(exactly(0), getRequestedFor(urlPathEqualTo(WeatherStubs.UV)));
+	}
+
+	/** 최신 발표분은 발표 시각 다음 시부터 칸이 있다. 그 시각 칸이 없으면 직전 발표분의 칸으로 하늘을 채운다. */
+	@Test
+	void skyFallsBackToPreviousIssueWhenLatestIssueHasNoSlotForCurrentHour() {
+		clock.set(kst("2026-10-13T20:30"));
+		stubs.observation(N7_GRID, kst("2026-10-13T20:00"), 17.0);
+		stubs.shortTerm(N7_GRID, kst("2026-10-13T20:00"), 24, at -> Map.of("SKY", "1"));
+		Instant previous = kst("2026-10-13T17:00");
+		shortTermStore.replace(N7_GRID, previous,
+				List.of(slot(kst("2026-10-13T18:00"), SkyCondition.CLEAR), slot(kst("2026-10-13T19:00"), SkyCondition.CLEAR),
+						slot(kst("2026-10-13T20:00"), SkyCondition.OVERCAST)),
+				previous);
+
+		CurrentObservation o = weatherApi.findCurrentObservation(N7);
+
+		assertThat(o.sky()).isEqualTo(SkyCondition.OVERCAST);
+		assertThat(o.sources()).containsEntry(ObservationItem.SKY, ValueSource.FORECAST);
+		assertThat(o.temperature()).isEqualTo(17.0);
+	}
+
+	private static SourceData.ShortTermSlot slot(Instant at, SkyCondition sky) {
+		return new SourceData.ShortTermSlot(at, 16.0, 60.0, 1.0, 0, PrecipitationType.NONE,
+				PrecipitationAmount.none("mm"), PrecipitationAmount.none("cm"), sky, null, null);
 	}
 
 }
