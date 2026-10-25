@@ -8,6 +8,9 @@ services:
       - 'POSTGRES_PASSWORD=weathertalk'
     ports:
       - '5432'
+    labels:
+      # postgis 이미지는 Boot가 PostgreSQL로 알아보지 못하므로 연결 종류를 직접 알려 준다
+      org.springframework.boot.service-connection: postgres
   redis:
     image: 'redis:7.4'
     ports:
