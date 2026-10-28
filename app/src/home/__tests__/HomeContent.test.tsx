@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { homeView, slot } from '@/test-utils/homeFixtures';
 
 import { HomeContent, type HomeContentProps } from '../components/HomeContent';
+import { weatherIconOf } from '../components/WeatherIcon';
 import { buildHourlyItems } from '../hourly';
 import type { CurrentObservation, HomeView } from '../types';
 
@@ -53,9 +54,31 @@ describe('홈 헤더', () => {
   });
 });
 
+/** 현재 날씨 세부(체감온도·습도·바람·자외선·대기질·에어코리아 출처)는 접혀 있어 펼친 뒤 확인한다. */
+function openCurrentDetails() {
+  fireEvent.press(screen.getByTestId('current-weather-toggle'));
+}
+
 describe('현재 날씨', () => {
+  it('처음엔 기온·하늘·관측 시각만 보이고, 자세히를 누르면 세부가 펼쳐진다', () => {
+    renderHome(homeView());
+    const section = within(screen.getByTestId('section-current-weather'));
+    expect(section.getByText('18°')).toBeTruthy();
+    expect(section.getByTestId('observation-time')).toBeTruthy();
+    expect(section.queryByTestId('current-weather-details')).toBeNull();
+    expect(screen.getByTestId('current-weather-toggle').props.accessibilityState).toMatchObject({ expanded: false });
+    // 요약 줄: 서버 강수 문구가 있으면 그대로("강수 강수 없음"처럼 겹치지 않게), 없으면 "강수 " + 값
+    expect(section.getByText(/^체감 17\.2° · /)).toBeTruthy();
+    expect(section.queryByText(/강수 강수/)).toBeNull();
+
+    openCurrentDetails();
+    expect(section.getByTestId('current-weather-details')).toBeTruthy();
+    expect(screen.getByTestId('current-weather-toggle').props.accessibilityState).toMatchObject({ expanded: true });
+  });
+
   it('기온·하늘(낮밤은 서버 값)·체감온도·자외선 5단계 문구·관측 시각을 보여준다', () => {
     renderHome(currentWith({ dayNight: 'NIGHT' }));
+    openCurrentDetails();
     const section = within(screen.getByTestId('section-current-weather'));
     expect(section.getByText('18°')).toBeTruthy();
     expect(section.getByText('맑음(밤)')).toBeTruthy();
@@ -68,6 +91,7 @@ describe('현재 날씨', () => {
 
   it('대기질 값이 없으면 "정보 없음" — 좋음으로 채우지 않는다', () => {
     renderHome(currentWith({ airQuality: null, uv: null }));
+    openCurrentDetails();
     const section = within(screen.getByTestId('section-current-weather'));
     expect(section.getAllByText('정보 없음 · 정보 없음')).toHaveLength(2);
     expect(section.queryByText(/좋음/)).toBeNull();
@@ -77,6 +101,7 @@ describe('현재 날씨', () => {
 
   it('PM2.5만 결측이면 그 항목만 정보 없음, 수치는 받은 그대로', () => {
     renderHome(homeView());
+    openCurrentDetails();
     const section = within(screen.getByTestId('section-current-weather'));
     expect(section.getByText('보통 · 35㎍/㎥')).toBeTruthy();
     expect(section.getByText('정보 없음 · 정보 없음')).toBeTruthy();
@@ -91,6 +116,9 @@ describe('현재 날씨', () => {
 
   it('에어코리아·기상청 출처를 표시한다', () => {
     renderHome(homeView());
+    // 대기질 값은 세부에만 있어 출처도 세부를 펼치면 함께 보인다. 기상청 출처는 홈 맨 아래에 늘 있다.
+    expect(screen.queryByTestId('air-attribution')).toBeNull();
+    openCurrentDetails();
     expect(screen.getByTestId('air-attribution').props.children).toContain('에어코리아');
     expect(screen.getByTestId('air-attribution').props.children).toContain('오류가 있을 수 있어요');
     expect(screen.getByTestId('kma-attribution').props.children).toContain('기상청');
@@ -151,6 +179,18 @@ describe('시간별 예보', () => {
   });
 });
 
+describe('날씨 아이콘', () => {
+  it('강수가 있으면 강수 아이콘, 하늘·강수 모두 없으면 정보 없음 아이콘', () => {
+    expect(weatherIconOf('CLEAR', 'NIGHT').name).toBe('moon');
+    expect(weatherIconOf('CLEAR', 'DAY', 'RAIN').name).toBe('rainy');
+    expect(weatherIconOf('OVERCAST', null, 'SNOW').name).toBe('snow');
+    expect(weatherIconOf(null, null).name).toBe('cloud-offline-outline');
+
+    renderHome(currentWith({ sky: null, precipitationType: null }));
+    expect(screen.getByTestId('current-weather-icon').props.accessibilityLabel).toBe('정보 없음');
+  });
+});
+
 describe('주간 예보', () => {
   it('빈 날은 정보 없음', () => {
     const base = homeView();
@@ -166,7 +206,10 @@ describe('주간 예보', () => {
       },
     });
     const days = screen.getAllByTestId('daily-day');
-    expect(within(days[0]).getByText('맑음/구름많음  10° / 20°')).toBeTruthy();
+    expect(within(days[0]).getByLabelText('오전 맑음')).toBeTruthy();
+    expect(within(days[0]).getByLabelText('오후 구름많음')).toBeTruthy();
+    expect(within(days[0]).getByText('10°')).toBeTruthy();
+    expect(within(days[0]).getByText('20°')).toBeTruthy();
     expect(within(days[1]).getByText('정보 없음')).toBeTruthy();
   });
 });

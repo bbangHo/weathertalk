@@ -17,7 +17,7 @@ import kr.weathertalk.weather.FieldReportKind;
 import kr.weathertalk.weather.FieldReportTestBase;
 
 /**
- * 홈의 예보 vs 주민 차이 배지·현장 제보 현황 섹션 (07 §5 SCR-01 5·8번). 판정·집계는 weather 결과 그대로 표시만 한다.
+ * 홈의 예보 vs 주민 차이 배지·현장 제보 현황 섹션 (07 §5 SCR-01 3·6번). 판정·집계는 weather 결과 그대로 표시만 한다.
  */
 @IntegrationTest
 class HomeFieldReportSectionsTests extends FieldReportTestBase {

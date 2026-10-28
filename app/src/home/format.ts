@@ -24,16 +24,6 @@ export function skyText(sky: SkyCondition | null, dayNight: DayNight | null = nu
   return SKY_LABEL[sky];
 }
 
-export function skyIcon(sky: SkyCondition | null, dayNight: DayNight | null): string {
-  if (!sky) {
-    return '·';
-  }
-  if (sky === 'CLEAR') {
-    return dayNight === 'NIGHT' ? '🌙' : '☀️';
-  }
-  return sky === 'MOSTLY_CLOUDY' ? (dayNight === 'NIGHT' ? '☁️' : '⛅') : '☁️';
-}
-
 export function precipitationTypeText(type: PrecipitationType | null): string {
   return type ? PRECIPITATION_LABEL[type] : NO_DATA;
 }

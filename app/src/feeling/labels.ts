@@ -1,4 +1,4 @@
-// 체감 표시 문구 (07 SCR-01 3번 산출 출처 문구, 04 §3.1 태그). 태그 이름의 정본은 GET /api/v1/feeling/tags이고,
+// 체감 표시 문구 (07 SCR-01 4번 산출 출처 문구, 04 §3.1 태그). 태그 이름의 정본은 GET /api/v1/feeling/tags이고,
 // 아래 표는 그 응답을 아직 받지 못했을 때(홈 첫 표시·오프라인)만 쓰는 대체 문구다. 서버 값과 같게 둔다.
 import { useQuery } from '@tanstack/react-query';
 

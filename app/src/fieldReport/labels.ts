@@ -1,4 +1,4 @@
-// 현장 제보 표시 문구와 취소 기한 (03 §3.7·3.8, FR-WEA-14, 07 SCR-01 5·8번, SCR-05)
+// 현장 제보 표시 문구와 취소 기한 (03 §3.7·3.8, FR-WEA-14, 07 SCR-01 3·6번, SCR-05)
 // 판정(다수 의견·배지)은 weather가 하고 앱은 받은 값을 글자로만 바꾼다.
 import { kstTimeText, NO_DATA } from '@/home/format';
 import type { ValueSource } from '@/home/types';

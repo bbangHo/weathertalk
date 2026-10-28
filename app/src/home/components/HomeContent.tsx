@@ -124,18 +124,13 @@ export function HomeContent({
         </View>
       ) : null}
 
+      {/* 순서는 07 SCR-01: 날씨 요약 → 예보 vs 주민 → 이웃 체감 → 현장 제보 → 인기글 → 옷차림 → 어제 비교 → 시간별·중기 예보 */}
       <CurrentWeatherSection section={home.currentWeather} onRetry={retry} />
+      <DivergenceBadges home={home} onRetry={retry} />
       {isMember ? <CalibrationOfferCard section={home.calibrationOffer} /> : null}
       <View onLayout={(event) => (feelingsY.current = event.nativeEvent.layout.y)}>
         <SensitivityFeelingsSection home={home} viewingKind={viewingKind} isMember={isMember} onRetry={retry} />
       </View>
-      <DivergenceBadges home={home} onRetry={retry} />
-      <OutfitSection
-        home={home}
-        onRetry={retry}
-        onPickSensitivity={() => scrollRef.current?.scrollTo({ y: feelingsY.current, animated: true })}
-      />
-      <YesterdaySection home={home} onRetry={retry} />
       <View onLayout={onFieldReportLayout} testID="focus-anchor-field-report">
         <FieldReportSection
           home={home}
@@ -144,11 +139,17 @@ export function HomeContent({
           onRetry={retry}
         />
       </View>
+      <PopularPostsSection home={home} viewingKind={viewingKind} onRetry={retry} />
+      <OutfitSection
+        home={home}
+        onRetry={retry}
+        onPickSensitivity={() => scrollRef.current?.scrollTo({ y: feelingsY.current, animated: true })}
+      />
+      <YesterdaySection home={home} onRetry={retry} />
       <View onLayout={onHourlyLayout} testID="focus-anchor-hourly">
         <HourlyForecastSection section={home.hourlyForecast} onRetry={retry} emphasized={focus === 'hourly'} />
       </View>
       <DailyForecastSection section={home.dailyForecast} onRetry={retry} />
-      <PopularPostsSection home={home} viewingKind={viewingKind} onRetry={retry} />
       <WeatherAttribution />
     </ScrollView>
   );
@@ -161,8 +162,6 @@ const styles = StyleSheet.create({
   notice: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.sm,
   },

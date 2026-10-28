@@ -1,4 +1,4 @@
-// SCR-01 3·4·6·7번 + 보정 제안 카드: 내 그룹 강조/선택 칩, 피드백 버튼 규칙, 옷 추천 기준, 어제 비교, 섹션 실패
+// SCR-01 4·5·8·9번 + 보정 제안 카드: 내 그룹 강조/선택 칩, 피드백 버튼 규칙, 옷 추천 기준, 어제 비교, 섹션 실패
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
@@ -70,7 +70,7 @@ const withFeelings = (overrides: Partial<HomeView> = {}) =>
     ...overrides,
   });
 
-describe('민감도별 체감 3그룹 (SCR-01 3번)', () => {
+describe('민감도별 체감 3그룹 (SCR-01 4번)', () => {
   it('세 그룹의 체감 태그와 산출 출처 문구를 보여주고 내 그룹을 강조한다', () => {
     renderHome(withFeelings());
     const heat = within(screen.getByTestId('group-HEAT_SENSITIVE'));
@@ -122,7 +122,7 @@ describe('민감도별 체감 3그룹 (SCR-01 3번)', () => {
   });
 });
 
-describe('체감 피드백 버튼 (SCR-01 4번)', () => {
+describe('체감 피드백 버튼 (SCR-01 5번)', () => {
   it('보는 동네가 현재 동네가 아니면 비활성 + 안내', () => {
     renderHome(withFeelings(), { viewingKind: 'interest' });
     expect(screen.getByTestId('feedback-RIGHT').props.accessibilityState.disabled).toBe(true);
@@ -220,7 +220,7 @@ describe('체감 피드백 버튼 (SCR-01 4번)', () => {
   });
 });
 
-describe('옷 추천·외출 시각·어제 비교 (SCR-01 6·7번)', () => {
+describe('옷 추천·외출 시각·어제 비교 (SCR-01 8·9번)', () => {
   const outfit = ok({
     temperatureLevel: 4,
     precipitation: 'NONE' as const,

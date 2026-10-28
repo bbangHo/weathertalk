@@ -1,4 +1,4 @@
-// SCR-01 5번 차이 배지(서버가 표시하라고 한 축만, 받은 값 그대로) · 8번 현장 제보 현황(상태별 표시, 제보 버튼 규칙)
+// SCR-01 3번 차이 배지(서버가 표시하라고 한 축만, 받은 값 그대로) · 6번 현장 제보 현황(상태별 표시, 제보 버튼 규칙)
 // · §7.3 focus 강조(현장 제보 "나도 제보하기", 시간별 예보 강수 시작 칸)
 import { fireEvent, screen, within } from '@testing-library/react-native';
 import { ScrollView } from 'react-native';

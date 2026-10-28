@@ -4,14 +4,15 @@ import { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 
 import { LeaveTabButton } from '@/components/navigation/LeaveTabButton';
+import { TAB_ICON_SIZE, tabLabelStyle } from '@/components/navigation/tabBar';
 import { colors } from '@/theme';
 
 type IconProps = ComponentProps<typeof Ionicons>;
 
 // 선택된 탭은 채운 아이콘, 나머지는 선 아이콘
 function tabIcon(name: IconProps['name'], outline: IconProps['name']) {
-  return function TabIcon({ focused, color, size }: { focused: boolean; color: IconProps['color']; size: number }) {
-    return <Ionicons name={focused ? name : outline} color={color} size={size} />;
+  return function TabIcon({ focused, color }: { focused: boolean; color: IconProps['color'] }) {
+    return <Ionicons name={focused ? name : outline} color={color} size={TAB_ICON_SIZE} />;
   };
 }
 
@@ -21,6 +22,8 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: tabLabelStyle,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >

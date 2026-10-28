@@ -1,4 +1,4 @@
-// SCR-01 3·4·6·7번 + 민감도 보정 제안 카드 (07 SCR-01, §1.2·1.3, 04 FR-FEL-04·05·08)
+// SCR-01 4·5·8·9번 + 민감도 보정 제안 카드 (07 SCR-01, §1.2·1.3, 04 FR-FEL-04·05·08)
 // 내 그룹 강조·옷 추천 기준 그룹은 home 응답(personal)을 그대로 쓴다. 판단은 하지 않는다(§1.5).
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -43,7 +43,7 @@ export function useHomeTagLabeler(): TagLabeler {
   return createTagLabeler(tags.data);
 }
 
-/** 비회원이 고른 민감도를 기기에 저장하고 홈을 다시 부른다(SCR-01 3번 선택 칩). */
+/** 비회원이 고른 민감도를 기기에 저장하고 홈을 다시 부른다(SCR-01 4번 선택 칩). */
 function usePickGuestSensitivity() {
   const queryClient = useQueryClient();
   return async (value: TemperatureSensitivity) => {
@@ -253,7 +253,7 @@ export function OutfitSection({
 }: {
   home: HomeView;
   onRetry: Retry;
-  /** '내 민감도 고르기' → 3번 선택 칩으로 */
+  /** '내 민감도 고르기' → 4번 선택 칩으로 */
   onPickSensitivity: () => void;
 }) {
   const label = useHomeTagLabeler();

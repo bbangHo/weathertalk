@@ -43,3 +43,10 @@ jest.mock('expo-location', () => {
     })),
   };
 });
+
+// 아이콘 글꼴은 이미 불러온 것으로 둔다. 안 그러면 @expo/vector-icons가 렌더 뒤 비동기로 글꼴을 불러 act 경고가 난다.
+jest.mock('expo-font', () => ({
+  ...jest.requireActual('expo-font'),
+  isLoaded: () => true,
+  loadAsync: jest.fn(async () => {}),
+}));

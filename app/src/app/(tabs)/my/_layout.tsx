@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
 
+import { stackScreenOptions } from '@/navigation/stackOptions';
+
 export default function MyStackLayout() {
   return (
-    <Stack>
+    <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name="index" options={{ title: '마이' }} />
       <Stack.Screen name="notifications" options={{ title: '알림 구독 설정' }} />
       <Stack.Screen name="interest-neighborhoods" options={{ title: '관심 동네 관리' }} />

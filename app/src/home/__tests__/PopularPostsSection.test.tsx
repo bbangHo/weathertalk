@@ -1,4 +1,4 @@
-// SCR-01 11번 동네 인기글: 받은 글만(가짜 카드 없음) 최대 home.popular-posts-count장, 0건 빈 상태 + 글쓰기(현재 동네만), 더 보기 → 피드
+// SCR-01 7번 동네 인기글: 받은 글만(가짜 카드 없음) 최대 home.popular-posts-count장, 0건 빈 상태 + 글쓰기(현재 동네만), 더 보기 → 피드
 import { fireEvent, screen } from '@testing-library/react-native';
 
 import { post } from '@/test-utils/communityFixtures';

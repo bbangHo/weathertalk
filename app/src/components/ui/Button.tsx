@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  inactive: { backgroundColor: colors.disabledBackground, borderColor: colors.disabledBackground },
+  secondary: { backgroundColor: colors.surfaceMuted },
+  inactive: { backgroundColor: colors.disabledBackground },
   content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

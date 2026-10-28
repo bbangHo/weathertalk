@@ -7,8 +7,8 @@ import { AuthGate } from '@/auth/AuthGate';
 // 좋아요 보류 행동의 자동 적용 처리기를 앱 시작 때 등록한다(07 §3 규칙 4).
 import '@/community/likes';
 import { AppLifecycle } from '@/entry/AppLifecycle';
+import { stackScreenOptions } from '@/navigation/stackOptions';
 import { AppProviders } from '@/providers/AppProviders';
-import { colors } from '@/theme';
 
 // 세션 복원·기기 저장값 읽기가 끝날 때까지 스플래시를 유지한다(07 §2-9). 내리는 곳은 AppLifecycle.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -19,12 +19,7 @@ export default function RootLayout() {
       <AppLifecycle />
       <AuthGate />
       <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerTintColor: colors.textPrimary,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      >
+      <Stack screenOptions={stackScreenOptions}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="neighborhood-switch"

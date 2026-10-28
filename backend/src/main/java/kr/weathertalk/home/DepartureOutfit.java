@@ -6,7 +6,7 @@ import kr.weathertalk.feeling.SensitivityFeeling;
 import kr.weathertalk.outfit.DepartureOutfitRecommendation;
 
 /**
- * 외출 시각 기준 섹션 (07 §1.2, SCR-01 6번): 외출 시각별 기준 그룹 체감과 outfit의 외출 시각 옷 추천.
+ * 외출 시각 기준 섹션 (07 §1.2, SCR-01 8번): 외출 시각별 기준 그룹 체감과 outfit의 외출 시각 옷 추천.
  *
  * @param departures '산출 불가'인 시각은 빠진다
  * @param recommendation 산출된 시각이 하나도 없으면 null(섹션 데이터 없음)

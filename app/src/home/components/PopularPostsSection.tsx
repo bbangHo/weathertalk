@@ -1,4 +1,4 @@
-// SCR-01 11번 동네 인기글 (07 SCR-01 빈 상태: 0건이면 "아직 이 동네 글이 없어요" + 글쓰기(현재 동네일 때만), 가짜 카드 없음)
+// SCR-01 7번 동네 인기글 (07 SCR-01 빈 상태: 0건이면 "아직 이 동네 글이 없어요" + 글쓰기(현재 동네일 때만), 가짜 카드 없음)
 // 고르는 기준은 community(BR-COM-13)이고 앱은 받은 순서 그대로 home.popular-posts-count장까지 보여준다.
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';

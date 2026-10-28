@@ -1,4 +1,4 @@
-// SCR-01 5번 예보 vs 주민 차이 배지 · 8번 현장 제보 현황 (07 SCR-01, §1.2, §1.5, §7.3, 03 FR-WEA-05·12, BR-WEA-19)
+// SCR-01 3번 예보 vs 주민 차이 배지 · 6번 현장 제보 현황 (07 SCR-01, §1.2, §1.5, §7.3, 03 FR-WEA-05·12, BR-WEA-19)
 // 배지는 weather가 표시하라고 한 축(badge=true)만, 받은 축·값·근거 시각 그대로 보여준다. 다수 의견도 weather 값이다.
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';

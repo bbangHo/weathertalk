@@ -51,8 +51,6 @@ const styles = StyleSheet.create({
   box: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
     alignItems: 'flex-start',

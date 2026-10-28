@@ -1,6 +1,7 @@
-// SCR-01 날씨 섹션: 현재 날씨·시간별 예보·중기 예보와 출처 표시 (07 SCR-01 2·9·10, §1.4, owner-todos §3 출처 표시)
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+// SCR-01 날씨 섹션: 현재 날씨·시간별 예보·중기 예보와 출처 표시 (07 SCR-01 2·10·11, §1.4, owner-todos §3 출처 표시)
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, SectionState } from '@/components/ui';
 import { colors, radii, spacing } from '@/theme';
@@ -14,13 +15,13 @@ import {
   percentText,
   precipitationTypeText,
   rawNumberText,
-  skyIcon,
   skyText,
   temperatureText,
   windText,
 } from '../format';
 import { buildHourlyItems, uiStatus } from '../hourly';
-import type { CurrentObservation, DailyForecast, HomeSection, HourlyForecast } from '../types';
+import type { CurrentObservation, DailyForecast, DailyForecastDay, HomeSection, HourlyForecast } from '../types';
+import { WeatherIcon } from './WeatherIcon';
 
 type SectionProps<T> = { section: HomeSection<T>; onRetry: () => void | Promise<unknown> };
 
@@ -94,23 +95,57 @@ export function CurrentWeatherSection({ section, onRetry }: SectionProps<Current
   );
 }
 
+/** 기온·하늘·요약 한 줄·관측 시각만 먼저 보이고, 나머지 수치와 대기질 출처는 '자세히'를 눌러 펼친다(SCR-01 2). */
 function CurrentWeatherBody({ observation }: { observation: CurrentObservation }) {
-  const air = observation.airQuality;
-  const uv = observation.uv;
-  const airTime = kstTimeText(air?.measuredAt ?? null);
-  const airFreshness = air ? freshnessText(air.freshness) : null;
+  const [expanded, setExpanded] = useState(false);
   return (
     <View style={styles.body}>
       <View style={styles.hero}>
-        <AppText style={styles.heroIcon}>{skyIcon(observation.sky, observation.dayNight)}</AppText>
-        <View>
-          <AppText style={styles.heroTemp}>{temperatureText(observation.temperature)}</AppText>
-          <AppText tone="secondary">{skyText(observation.sky, observation.dayNight)}</AppText>
+        <WeatherIcon
+          sky={observation.sky}
+          dayNight={observation.dayNight}
+          precipitationType={observation.precipitationType}
+          size={48}
+          testID="current-weather-icon"
+        />
+        <View style={styles.heroText}>
+          <View style={styles.heroLine}>
+            <AppText variant="display">{temperatureText(observation.temperature)}</AppText>
+            <AppText tone="secondary">{skyText(observation.sky, observation.dayNight)}</AppText>
+          </View>
+          <AppText variant="caption" tone="secondary">
+            {`체감 ${temperatureText(observation.feelsLike)} · ${observation.precipitationPhrase ?? `강수 ${precipitationText(observation)}`}`}
+          </AppText>
         </View>
       </View>
       <AppText variant="caption" tone="secondary" testID="observation-time">
         {observationTimeText(observation)}
       </AppText>
+      {expanded ? <CurrentWeatherDetails observation={observation} /> : null}
+      <Pressable
+        testID="current-weather-toggle"
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}
+      >
+        <AppText variant="button" tone="secondary">
+          {expanded ? '접기' : '습도·바람·자외선·미세먼지 자세히'}
+        </AppText>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+      </Pressable>
+    </View>
+  );
+}
+
+function CurrentWeatherDetails({ observation }: { observation: CurrentObservation }) {
+  const air = observation.airQuality;
+  const uv = observation.uv;
+  const airTime = kstTimeText(air?.measuredAt ?? null);
+  const airFreshness = air ? freshnessText(air.freshness) : null;
+  return (
+    <View style={styles.body} testID="current-weather-details">
+      <View style={styles.divider} />
       <Row label="체감온도" value={temperatureText(observation.feelsLike)} />
       <Row label="강수" value={precipitationText(observation)} />
       <Row label="습도" value={percentText(observation.humidity)} />
@@ -180,7 +215,11 @@ function HourlyBody({ forecast, emphasized }: { forecast: HourlyForecast; emphas
               <AppText variant="caption" tone="secondary">
                 {`${item.slot.hour}시`}
               </AppText>
-              <AppText>{skyIcon(item.slot.sky, item.slot.dayNight)}</AppText>
+              <WeatherIcon
+                sky={item.slot.sky}
+                dayNight={item.slot.dayNight}
+                precipitationType={item.slot.precipitationType}
+              />
               <AppText>{temperatureText(item.slot.temperature, 0)}</AppText>
               <AppText variant="caption" tone="secondary">
                 {item.slot.precipitationProbability === null ? '-' : `${item.slot.precipitationProbability}%`}
@@ -209,16 +248,7 @@ export function DailyForecastSection({ section, onRetry }: SectionProps<DailyFor
         {forecast ? (
           <View style={styles.body}>
             {forecast.days.map((day) => (
-              <View key={day.date} style={styles.row} testID="daily-day">
-                <AppText>{dateLabel(day.date)}</AppText>
-                {day.source === null ? (
-                  <AppText tone="secondary">{NO_DATA}</AppText>
-                ) : (
-                  <AppText>
-                    {`${skyText(day.amSky)}/${skyText(day.pmSky)}  ${temperatureText(day.minTemperature, 0)} / ${temperatureText(day.maxTemperature, 0)}`}
-                  </AppText>
-                )}
-              </View>
+              <DailyRow key={day.date} day={day} />
             ))}
             {freshnessText(forecast.freshness) ? (
               <AppText variant="caption" tone="secondary">
@@ -229,6 +259,32 @@ export function DailyForecastSection({ section, onRetry }: SectionProps<DailyFor
         ) : null}
       </SectionState>
     </Card>
+  );
+}
+
+/** 주간 예보 한 줄: 날짜 | 오전·오후 하늘 | 최저 / 최고 */
+function DailyRow({ day }: { day: DailyForecastDay }) {
+  return (
+    <View style={styles.dailyRow} testID="daily-day">
+      <AppText style={styles.dailyDate}>{dateLabel(day.date)}</AppText>
+      {day.source === null ? (
+        <AppText tone="secondary">{NO_DATA}</AppText>
+      ) : (
+        <>
+          <View style={styles.dailyIcons}>
+            <WeatherIcon sky={day.amSky} precipitationType={day.amPrecipitationType} labelPrefix="오전" />
+            <WeatherIcon sky={day.pmSky} precipitationType={day.pmPrecipitationType} labelPrefix="오후" />
+          </View>
+          <View style={styles.dailyTemps}>
+            <AppText tone="secondary" style={styles.dailyTemp}>
+              {temperatureText(day.minTemperature, 0)}
+            </AppText>
+            <AppText tone="secondary">/</AppText>
+            <AppText style={styles.dailyTemp}>{temperatureText(day.maxTemperature, 0)}</AppText>
+          </View>
+        </>
+      )}
+    </View>
   );
 }
 
@@ -245,16 +301,24 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
+    padding: spacing.card,
     gap: spacing.md,
   },
   cardEmphasized: { borderColor: colors.primary, borderWidth: 2 },
   body: { gap: spacing.sm },
   hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  heroIcon: { fontSize: 44, lineHeight: 52 },
-  heroTemp: { fontSize: 40, lineHeight: 48, fontWeight: '700' },
+  heroText: { flex: 1 },
+  heroLine: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  toggle: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.md,
+    backgroundColor: colors.background,
+  },
+  togglePressed: { backgroundColor: colors.surfaceMuted },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
   hourlyList: { gap: spacing.md, alignItems: 'stretch' },
@@ -266,5 +330,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
   },
+  dailyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },
+  dailyDate: { flex: 1 },
+  dailyIcons: { flexDirection: 'row', gap: spacing.xs },
+  dailyTemps: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.xs, width: 80 },
+  dailyTemp: { minWidth: 32, textAlign: 'right' },
   attribution: { textAlign: 'center' },
 });

@@ -42,8 +42,6 @@ const styles = StyleSheet.create({
   link: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: spacing.md,
   },
 });
