@@ -52,7 +52,20 @@ public final class ProviderTestKeys {
 	public static final ECKey APPLE_CLIENT_SECRET_KEY = ec();
 	public static final Path APPLE_PRIVATE_KEY_PATH = writeP8(APPLE_CLIENT_SECRET_KEY);
 
+	/** 앱인토스 mTLS 클라이언트 인증서(테스트 전용 자체 서명 PEM). 모의 서버는 http라 내용은 쓰이지 않고 읽기·적재만 확인된다. */
+	public static final Path TOSS_MTLS_CERT_PATH = resource("/toss-mtls/test-only_public.crt");
+	public static final Path TOSS_MTLS_KEY_PATH = resource("/toss-mtls/test-only_private.key");
+
 	private ProviderTestKeys() {
+	}
+
+	private static Path resource(String name) {
+		try {
+			return Path.of(ProviderTestKeys.class.getResource(name).toURI());
+		}
+		catch (java.net.URISyntaxException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
 	public static String jwks(RSAKey... keys) {

@@ -40,6 +40,10 @@ management:
 # 재기동 없는 갱신은 M8 운영 단계에서 Spring Cloud Config(+ 갱신 이벤트)나 DB 설정 테이블로 검토한다.
 # ─────────────────────────────────────────────────────────────────────────────
 shared:
+  # 브라우저에서 API를 부르는 출처. 앱인토스 미니앱: https://{appName}.apps.tossmini.com(출시), https://{appName}.private-apps.tossmini.com(QR 테스트).
+  # 쉼표로 여러 개. 비면 CORS를 열지 않는다(네이티브 앱은 상관없음).
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   idempotency:
     # 요청 식별자 처리 결과 기본 보관 기간 (모듈별 값이 있으면 그 값을 쓴다. 예: community.idempotency-window)
     ttl: 24h
@@ -96,6 +100,11 @@ member:
       revoke-url: https://oauth2.googleapis.com/revoke
       server-client-id: ${GOOGLE_SERVER_CLIENT_ID:}         # 서버 인가 코드 교환용 웹 클라이언트
       server-client-secret: ${GOOGLE_SERVER_CLIENT_SECRET:}
+    # 앱인토스 사용자 식별키 로그인. 인증서는 콘솔 > 미니앱 > 개발 > mTLS 인증서에서 받은 PEM 두 파일(저장소에 올리지 않는다).
+    toss-anon:
+      api-base-url: https://apps-in-toss-api.toss.im
+      certificate-path: ${TOSS_MTLS_CERT_PATH:}   # *_public.crt
+      private-key-path: ${TOSS_MTLS_KEY_PATH:}    # *_private.key
   token:
     # 접근·갱신 토큰 서명 비밀값(32자 이상). 운영은 환경 변수 MEMBER_TOKEN_SECRET 필수(prod 프로파일은 기본값 없음 → 비면 기동 실패).
     # 아래 기본값은 local·test 전용 개발 키다. 운영·스테이징에 쓰지 않는다.

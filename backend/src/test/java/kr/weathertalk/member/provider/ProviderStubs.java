@@ -2,6 +2,7 @@ package kr.weathertalk.member.provider;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
@@ -13,7 +14,7 @@ import java.util.Map;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.nimbusds.jose.jwk.RSAKey;
 
-/** 카카오·애플·구글 모의 응답(통합 테스트 공유 WireMock의 /kakao, /apple, /google). */
+/** 카카오·애플·구글·앱인토스 모의 응답(통합 테스트 공유 WireMock의 /kakao, /apple, /google, /toss). */
 public class ProviderStubs {
 
 	public static final String KAKAO_TOKEN_INFO = "/kakao/v1/user/access_token_info";
@@ -25,6 +26,7 @@ public class ProviderStubs {
 	public static final String GOOGLE_CERTS = "/google/certs";
 	public static final String GOOGLE_TOKEN = "/google/token";
 	public static final String GOOGLE_REVOKE = "/google/revoke";
+	public static final String TOSS_ANON_EXCHANGE = "/toss/api-partner/v1/apps-in-toss/users/anon-key/exchange";
 
 	private final WireMockServer server;
 
@@ -47,6 +49,19 @@ public class ProviderStubs {
 			.willReturn(aResponse().withStatus(status)
 				.withHeader("Content-Type", "application/json")
 				.withBody("{\"msg\":\"this access token does not exist\",\"code\":-401}")));
+	}
+
+	/** 앱인토스 식별키 교환: 인증 코드 → 식별키(anonKey). 업무 결과는 HTTP 200 + resultType. */
+	public void tossAnonExchange(String code, String anonKey) {
+		server.stubFor(post(urlPathEqualTo(TOSS_ANON_EXCHANGE)).withRequestBody(equalToJson("{\"code\":\"" + code + "\"}"))
+			.willReturn(okJson("{\"resultType\":\"SUCCESS\",\"success\":{\"anonKey\":\"" + anonKey + "\"}}")));
+	}
+
+	/** 앱인토스 식별키 교환 업무 오류(4011 코드 무효, 4095 요청 한도 초과). HTTP는 200이다. */
+	public void tossAnonExchangeFails(String code, String errorCode) {
+		server.stubFor(post(urlPathEqualTo(TOSS_ANON_EXCHANGE)).withRequestBody(equalToJson("{\"code\":\"" + code + "\"}"))
+			.willReturn(okJson("{\"resultType\":\"FAIL\",\"error\":{\"errorCode\":\"" + errorCode
+					+ "\",\"reason\":\"test\"}}")));
 	}
 
 	public void appleKeys(RSAKey... keys) {

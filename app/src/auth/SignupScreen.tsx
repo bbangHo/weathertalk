@@ -1,16 +1,18 @@
 // SCR-10 가입 (07 SCR-10, §3 흐름·규칙 1~3, §4 규칙 4, §6.2, 01 FR-MEM-02·03·12)
-// 제공자 버튼은 A5에서 붙인다(지금은 "준비 중"). 개발 빌드에서만 개발 전용 로그인을 보여준다.
+// 제공자 버튼은 providerLogin(스토어 앱: A5에서 붙인다, 지금은 "준비 중" / 앱인토스: 토스 식별키). 개발 빌드에서만 개발 전용 로그인을 보여준다.
 // 가입 중 푸시 권한을 묻지 않는다(§3 규칙 3).
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { api } from '@/api';
+import type { ApiClient } from '@/api/client';
 import { isApiError } from '@/api/errors';
 import { AppText, Button, Screen } from '@/components/ui';
 import { DEV_ENTRY_ENABLED } from '@/config/env';
 import { pendingActionStore } from '@/pending/pendingAction';
+import { openExternalLink } from '@/platform/openExternalLink';
 import { restoreAfterSignup } from '@/pending/restore';
 import { queryKeys } from '@/query/queryKeys';
 import { generalStore, type TemperatureSensitivity } from '@/storage';
@@ -28,6 +30,7 @@ import {
   type TermsResponse,
 } from './api';
 import { completeLogin, discardedNotice, type PostLoginDeps } from './completeLogin';
+import { PROVIDER_BUTTONS, type ProviderButton } from './providerLogin';
 import { signupSheet } from './signupSheet';
 import { allRequiredAgreed, initialSignupState, signupReducer, termsKey, toAgreements } from './signupMachine';
 import { termsStatus } from './termsStatus';
@@ -38,11 +41,11 @@ export type SignupScreenProps = {
   devEntryEnabled?: boolean;
   /** 테스트에서 로그인 직후 처리를 바꿀 때 */
   postLoginDeps?: PostLoginDeps;
+  /** 로그인 수단 버튼. 기본은 빌드 대상(providerLogin)의 버튼 */
+  providerButtons?: ProviderButton[];
 };
 
 const SIGNUP_TICKET_INVALID = 'SIGNUP_TICKET_INVALID';
-
-const PROVIDERS =Platform.OS === 'ios' ? ['카카오', '애플', '구글'] : ['카카오', '구글'];
 
 function errorMessage(error: unknown, fallback: string): string {
   return isApiError(error) && error.detail ? error.detail : fallback;
@@ -56,7 +59,12 @@ function closeSheet() {
   }
 }
 
-export function SignupScreen({ mode, devEntryEnabled = DEV_ENTRY_ENABLED, postLoginDeps }: SignupScreenProps) {
+export function SignupScreen({
+  mode,
+  devEntryEnabled = DEV_ENTRY_ENABLED,
+  postLoginDeps,
+  providerButtons = PROVIDER_BUTTONS,
+}: SignupScreenProps) {
   const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(signupReducer, undefined, () =>
     initialSignupState(mode, termsStatus.getState().termsToReagree),
@@ -123,6 +131,15 @@ export function SignupScreen({ mode, devEntryEnabled = DEV_ENTRY_ENABLED, postLo
         <ProviderStep
           error={state.error ?? error}
           devEntryEnabled={devEntryEnabled}
+          providerButtons={providerButtons}
+          onProviderLogin={async (login) => {
+            setError(null);
+            try {
+              await handleLogin(await login(api));
+            } catch (cause) {
+              setError(errorMessage(cause, '로그인하지 못했어요. 다시 시도해 주세요.'));
+            }
+          }}
           onDevLogin={async (id) => {
             setError(null);
             try {
@@ -217,11 +234,15 @@ export function SignupScreen({ mode, devEntryEnabled = DEV_ENTRY_ENABLED, postLo
 function ProviderStep({
   error,
   devEntryEnabled,
+  providerButtons,
+  onProviderLogin,
   onDevLogin,
   onCancel,
 }: {
   error: string | null;
   devEntryEnabled: boolean;
+  providerButtons: ProviderButton[];
+  onProviderLogin: (login: (client: ApiClient) => Promise<LoginResponse>) => Promise<void>;
   onDevLogin: (id: string) => Promise<void>;
   onCancel: () => Promise<void>;
 }) {
@@ -230,10 +251,13 @@ function ProviderStep({
     <View style={styles.block}>
       <AppText variant="title">가입하고 남겨 보세요</AppText>
       <AppText tone="secondary">로그인하면 체감 기록·피드백·글을 남길 수 있어요. 닉네임은 자동으로 정해져요.</AppText>
-      {PROVIDERS.map((name) => (
-        // 제공자 로그인 SDK 연결은 A5 — 그때까지 눌리지 않게 둔다.
-        <Button key={name} title={`${name}로 계속하기 (준비 중)`} variant="secondary" disabled onPress={() => undefined} />
-      ))}
+      {providerButtons.map(({ key, title, login }) =>
+        login ? (
+          <Button key={key} title={title} testID={`provider-${key}`} onPress={() => onProviderLogin(login)} />
+        ) : (
+          <Button key={key} title={title} variant="secondary" disabled onPress={() => undefined} />
+        ),
+      )}
       {error ? (
         <AppText tone="danger" accessibilityRole="alert" testID="signup-error">
           {error}
@@ -303,7 +327,7 @@ function TermsList({
               testID={`terms-${item.kind}`}
             />
             {item.contentUrl ? (
-              <Pressable accessibilityRole="link" onPress={() => Linking.openURL(item.contentUrl!).catch(() => undefined)}>
+              <Pressable accessibilityRole="link" onPress={() => openExternalLink(item.contentUrl!).catch(() => undefined)}>
                 <AppText tone="secondary">보기</AppText>
               </Pressable>
             ) : null}

@@ -49,7 +49,7 @@ public class IntegrationTestConfiguration {
 	}
 
 	/**
-	 * 소셜 로그인 제공자(카카오 /kakao, 애플 /apple, 구글 /google) 모의 서버 연결. 키는 테스트용(ProviderTestKeys)이다.
+	 * 소셜 로그인 제공자(카카오 /kakao, 애플 /apple, 구글 /google, 앱인토스 /toss) 모의 서버 연결. 키는 테스트용(ProviderTestKeys)이다.
 	 */
 	@Bean
 	DynamicPropertyRegistrar loginProviderProperties(WireMockServer weatherSourceServer) {
@@ -71,6 +71,9 @@ public class IntegrationTestConfiguration {
 			registry.add("member.providers.google.server-client-id", () -> ProviderTestKeys.GOOGLE_SERVER_CLIENT_ID);
 			registry.add("member.providers.google.server-client-secret",
 					() -> ProviderTestKeys.GOOGLE_SERVER_CLIENT_SECRET);
+			registry.add("member.providers.toss-anon.api-base-url", () -> base + "/toss");
+			registry.add("member.providers.toss-anon.certificate-path", () -> ProviderTestKeys.TOSS_MTLS_CERT_PATH.toString());
+			registry.add("member.providers.toss-anon.private-key-path", () -> ProviderTestKeys.TOSS_MTLS_KEY_PATH.toString());
 		};
 	}
 

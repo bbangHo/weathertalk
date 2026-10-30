@@ -4,9 +4,8 @@
 // - 회원 정보 조회 실패는 기본값으로 채우지 않고 오류 + 다시 시도. 서버 거부 사유는 받은 문구 그대로 보여준다.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { type ReactNode, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { api } from '@/api';
 import { ErrorCodes, isApiError } from '@/api/errors';
@@ -26,6 +25,9 @@ import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/config/env';
 import { CalibrationOfferCard } from '@/home/components/FeelingSections';
 import { routes } from '@/navigation/routes';
 import { writeGate } from '@/pending/writeGate';
+import { Alert } from '@/platform/alert';
+import { PUSH_NOTIFICATIONS_ENABLED } from '@/platform/features';
+import { openExternalLink } from '@/platform/openExternalLink';
 import { queryKeys } from '@/query/queryKeys';
 import { useSession } from '@/session/useSession';
 import { generalStore, type TemperatureSensitivity } from '@/storage';
@@ -47,6 +49,7 @@ const PROVIDER_LABEL: Record<AuthProvider | 'DEV', string> = {
   KAKAO: '카카오',
   APPLE: '애플',
   GOOGLE: '구글',
+  TOSS_ANON: '토스',
   DEV: '개발용 계정',
 };
 
@@ -457,12 +460,14 @@ function Menu() {
   const version = appVersionText();
   const open = (url: string | null) => {
     if (url) {
-      WebBrowser.openBrowserAsync(url).catch(() => undefined);
+      openExternalLink(url).catch(() => undefined);
     }
   };
   return (
     <Card testID="my-menu">
-      <MenuRow label="알림 구독 설정" onPress={() => router.push(routes.notificationSettings())} />
+      {PUSH_NOTIFICATIONS_ENABLED ? (
+        <MenuRow label="알림 구독 설정" onPress={() => router.push(routes.notificationSettings())} />
+      ) : null}
       <MenuRow label="관심 동네 관리" onPress={() => router.push(routes.interestNeighborhoods())} />
       <MenuRow
         label="이용약관"

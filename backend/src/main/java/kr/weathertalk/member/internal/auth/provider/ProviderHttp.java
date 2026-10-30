@@ -7,6 +7,8 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import javax.net.ssl.SSLContext;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -65,10 +67,18 @@ final class ProviderHttp {
 	private final RestClient client;
 
 	ProviderHttp(Duration timeout) {
-		HttpClient httpClient = HttpClient.newBuilder()
+		this(timeout, null);
+	}
+
+	/** @param sslContext 클라이언트 인증서(mTLS)를 실을 SSL 설정. null이면 JDK 기본 */
+	ProviderHttp(Duration timeout, SSLContext sslContext) {
+		HttpClient.Builder builder = HttpClient.newBuilder()
 			.version(HttpClient.Version.HTTP_1_1)
-			.connectTimeout(timeout)
-			.build();
+			.connectTimeout(timeout);
+		if (sslContext != null) {
+			builder.sslContext(sslContext);
+		}
+		HttpClient httpClient = builder.build();
 		JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
 		factory.setReadTimeout(timeout);
 		this.client = RestClient.builder().requestFactory(factory).build();
@@ -92,6 +102,19 @@ final class ProviderHttp {
 				.headers(headers)
 				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
 				.body(body)
+				.exchange((request, response) -> read(response));
+		}
+		catch (ResourceAccessException e) {
+			throw new ProviderUnavailableException("제공자 호출 실패: " + url, e);
+		}
+	}
+
+	Response postJson(String url, Object body) {
+		try {
+			return client.post()
+				.uri(url)
+				.contentType(MediaType.APPLICATION_JSON)
+				.body(JSON.writeValueAsString(body))
 				.exchange((request, response) -> read(response));
 		}
 		catch (ResourceAccessException e) {

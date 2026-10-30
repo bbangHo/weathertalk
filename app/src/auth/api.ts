@@ -42,7 +42,8 @@ export type LoginResponse = {
 /** 백엔드 AuthController.AgreementRequest */
 export type AgreementInput = { kind: string; version: number; agreed: boolean };
 
-export type AuthProvider = 'KAKAO' | 'APPLE' | 'GOOGLE';
+/** TOSS_ANON: 앱인토스 사용자 식별키(토스 미니앱 빌드에서만) */
+export type AuthProvider = 'KAKAO' | 'APPLE' | 'GOOGLE' | 'TOSS_ANON';
 
 /** 백엔드 MemberController.MyProfileResponse */
 export type MyProfile = {
@@ -69,6 +70,11 @@ export function devLogin(api: ApiClient, providerUserId: string): Promise<LoginR
     return Promise.reject(new Error('개발 전용 로그인은 개발 빌드에서만 쓸 수 있어요.'));
   }
   return api.post<LoginResponse>(DEV_LOGIN_PATH, { providerUserId, email: null }, { auth: false });
+}
+
+/** 제공자 로그인(FR-MEM-02). token은 제공자 토큰, 앱인토스 식별키는 인증 코드 */
+export function loginWithProvider(api: ApiClient, provider: AuthProvider, token: string): Promise<LoginResponse> {
+  return api.post<LoginResponse>('/api/v1/auth/login', { provider, token }, { auth: false });
 }
 
 export function completeSignup(

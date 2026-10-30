@@ -29,7 +29,8 @@ public record MemberProviderProperties(
 		String credentialKey,
 		@NotNull @Valid Kakao kakao,
 		@NotNull @Valid Apple apple,
-		@NotNull @Valid Google google) {
+		@NotNull @Valid Google google,
+		@NotNull @Valid TossAnon tossAnon) {
 
 	/**
 	 * @param appId 우리 앱 ID(숫자). 토큰 정보의 app_id와 같아야 한다
@@ -92,10 +93,26 @@ public record MemberProviderProperties(
 
 	}
 
+	/**
+	 * 앱인토스 사용자 식별키 로그인(사업자 없이 쓰는 토스 미니앱 로그인). 앱이 받은 인증 코드를 서버가 mTLS로 교환해 식별키를 얻는다.
+	 *
+	 * @param apiBaseUrl https://apps-in-toss-api.toss.im
+	 * @param certificatePath 콘솔(미니앱 > 개발 > mTLS 인증서)에서 받은 {@code *_public.crt}(PEM)
+	 * @param privateKeyPath 같은 zip의 {@code *_private.key}(PEM). 저장소에 올리지 않는다
+	 */
+	public record TossAnon(@NotBlank String apiBaseUrl, String certificatePath, String privateKeyPath) {
+
+		public boolean loginConfigured() {
+			return certificatePath != null && !certificatePath.isBlank() && privateKeyPath != null
+					&& !privateKeyPath.isBlank();
+		}
+
+	}
+
 	@Override
 	public String toString() {
 		return "MemberProviderProperties[timeout=" + timeout + ", credentialKey=***, kakao=" + kakao + ", apple=" + apple
-				+ ", google=" + google + "]";
+				+ ", google=" + google + ", tossAnon=" + tossAnon + "]";
 	}
 
 }

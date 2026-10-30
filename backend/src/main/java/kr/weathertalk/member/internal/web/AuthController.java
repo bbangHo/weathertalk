@@ -65,7 +65,7 @@ class AuthController {
 	}
 
 	/**
-	 * @param token 카카오 접근 토큰 / 애플 identity token / 구글 ID 토큰
+	 * @param token 카카오 접근 토큰 / 애플 identity token / 구글 ID 토큰 / 앱인토스 식별키 인증 코드
 	 * @param authorizationCode 애플 인가 코드·구글 서버 인가 코드(연결 해제용 자격 획득, 선택)
 	 */
 	record LoginRequest(@NotNull AuthProvider provider, @NotBlank String token, String authorizationCode) {
@@ -77,9 +77,10 @@ class AuthController {
 
 	}
 
+	/** TOSS: 앱인토스(토스 미니앱) 웹 빌드 */
 	enum Platform {
 
-		IOS, ANDROID
+		IOS, ANDROID, TOSS
 
 	}
 
@@ -87,10 +88,13 @@ class AuthController {
 	record ProvidersResponse(List<AuthProvider> providers) {
 	}
 
-	/** 앱 플랫폼별 로그인 수단 노출 규칙: iOS는 카카오·애플·구글, Android는 카카오·구글(Q58). */
+	/**
+	 * 앱 플랫폼별 로그인 수단 노출 규칙: iOS는 카카오·애플·구글, Android는 카카오·구글(Q58).
+	 * 앱인토스는 토스 외 로그인을 쓸 수 없어 사용자 식별키만 둔다(토스 로그인은 사업자 등록 뒤).
+	 */
 	private static final Map<Platform, List<AuthProvider>> EXPOSED = Map.of(Platform.IOS,
 			List.of(AuthProvider.KAKAO, AuthProvider.APPLE, AuthProvider.GOOGLE), Platform.ANDROID,
-			List.of(AuthProvider.KAKAO, AuthProvider.GOOGLE));
+			List.of(AuthProvider.KAKAO, AuthProvider.GOOGLE), Platform.TOSS, List.of(AuthProvider.TOSS_ANON));
 
 	/** 소셜 로그인 (FR-MEM-02). 처음 보는 계정이면 registered=false + 가입 티켓. */
 	@PostMapping("/api/v1/auth/login")

@@ -10,6 +10,11 @@ weather:
       # 정기 작업은 테스트가 서비스 메서드를 직접 불러 검증한다(배경 실행이 WireMock 호출 수를 흐트러뜨리지 않게)
       enabled: false
 
+shared:
+  cors:
+    # 앱인토스 미니앱 출처 허용 확인(TossAnonLoginTests)
+    allowed-origins: https://weathertalk.apps.tossmini.com
+
 home:
   section-timeout: 2s
 

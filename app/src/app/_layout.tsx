@@ -8,6 +8,7 @@ import { AuthGate } from '@/auth/AuthGate';
 import '@/community/likes';
 import { AppLifecycle } from '@/entry/AppLifecycle';
 import { stackScreenOptions } from '@/navigation/stackOptions';
+import { AlertHost } from '@/platform/alert';
 import { AppProviders } from '@/providers/AppProviders';
 
 // 세션 복원·기기 저장값 읽기가 끝날 때까지 스플래시를 유지한다(07 §2-9). 내리는 곳은 AppLifecycle.
@@ -32,6 +33,7 @@ export default function RootLayout() {
         <Stack.Screen name="signup" options={{ presentation: 'modal', title: '가입' }} />
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack>
+      <AlertHost />
     </AppProviders>
   );
 }

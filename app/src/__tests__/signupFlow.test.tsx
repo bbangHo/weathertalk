@@ -283,3 +283,34 @@ describe('개발 전용 로그인 노출 (07 §4 규칙 4)', () => {
     view.unmount();
   });
 });
+
+describe('빌드 대상별 로그인 수단 (앱인토스: 토스 식별키)', () => {
+  it('쓸 수 있는 로그인 버튼을 누르면 그 제공자로 로그인하고, 처음이면 약관 단계로 간다', async () => {
+    const login = jest.fn(async () => ({
+      registered: false,
+      tokens: null,
+      member: null,
+      signupTicket: { ticket: 't1', expiresAt: '2026-10-16T00:00:00Z' },
+      terms: [service],
+    }));
+    const client = new QueryClient();
+    const view = render(
+      <QueryClientProvider client={client}>
+        <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+          <SignupScreen
+            mode="signup"
+            devEntryEnabled={false}
+            providerButtons={[{ key: 'toss', title: '토스로 계속하기', login }]}
+          />
+        </SafeAreaProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(view.queryByText('구글로 계속하기 (준비 중)')).toBeNull();
+    fireEvent.press(view.getByTestId('provider-toss'));
+
+    expect(await view.findByText('약관에 동의해 주세요')).toBeTruthy();
+    expect(login).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+});

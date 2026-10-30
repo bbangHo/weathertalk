@@ -8,7 +8,6 @@ import { router } from 'expo-router';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   RefreshControl,
@@ -27,6 +26,7 @@ import { getAppParams } from '@/config/appParams';
 import { routes } from '@/navigation/routes';
 import { useRestoredAction } from '@/pending/pendingAction';
 import { writeGate } from '@/pending/writeGate';
+import { Alert } from '@/platform/alert';
 import { queryKeys } from '@/query/queryKeys';
 import { colors, radii, spacing } from '@/theme';
 

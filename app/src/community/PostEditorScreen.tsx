@@ -6,7 +6,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { api } from '@/api';
 import { isApiError } from '@/api/errors';
@@ -19,6 +19,7 @@ import { useViewingState, viewingStore } from '@/neighborhood/viewingStore';
 import { routes } from '@/navigation/routes';
 import { useRestoredAction } from '@/pending/pendingAction';
 import { writeGate } from '@/pending/writeGate';
+import { Alert } from '@/platform/alert';
 import { queryKeys } from '@/query/queryKeys';
 import { colors, radii, spacing } from '@/theme';
 
