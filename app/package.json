@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@apps-in-toss/web-framework": "^3.9.0",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.104.2",
@@ -29,9 +30,11 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@apps-in-toss/devtools": "^3.9.0",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
+    "cross-env": "^7.0.3",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
     "jest": "~29.7.0",
@@ -45,7 +48,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest --ci",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "web:ait": "cross-env APP_TARGET=ait AIT_DEVTOOLS=1 expo start --web",
+    "build:ait": "cross-env APP_TARGET=ait expo export -p web --clear && ait build",
+    "deploy:ait": "ait deploy"
   },
   "private": true,
   "jest": {

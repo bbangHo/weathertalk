@@ -42,3 +42,5 @@ yarn-error.*
 
 # env (값은 .env.example 참고)
 .env
+
+*.ait
