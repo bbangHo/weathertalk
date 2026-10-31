@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256">
+  <g fill="#000">
+    <rect x="34" y="106" width="188" height="86" rx="43"/>
+    <circle cx="96" cy="110" r="42"/>
+    <circle cx="156" cy="94" r="56"/>
+    <path d="M66 176 L50 222 Q86 210 114 184 Z"/>
+  </g>
+  <text x="290" y="170" font-family="Noto Sans KR, Malgun Gothic" font-weight="800" font-size="118" fill="#000">날씨톡톡</text>
+</svg>

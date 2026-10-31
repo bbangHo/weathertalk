@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 256">
+  <g fill="#000">
+    <path transform="translate(86 166) rotate(22)" d="M0 -100 L36.66 -16 A40 40 0 1 1 -36.66 -16 Z"/>
+    <path transform="translate(174 166) rotate(22)" d="M0 -100 L36.66 -16 A40 40 0 1 1 -36.66 -16 Z"/>
+  </g>
+  <text x="290" y="170" font-family="Noto Sans KR, Malgun Gothic" font-weight="800" font-size="118" fill="#000">날씨톡톡</text>
+</svg>
