@@ -1,5 +1,6 @@
 // SCR-01 홈 화면 본문 (07 SCR-01, §7.3 섹션 강조 이동). 데이터 조회와 분리한 표시 전용 컴포넌트.
-import { useCallback, useEffect, useRef } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { type ComponentProps, useCallback, useEffect, useRef } from 'react';
 import { type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText, Button } from '@/components/ui';
@@ -13,8 +14,19 @@ import type { HomeView } from '../types';
 
 import { DivergenceBadges, FieldReportSection } from './FieldReportSections';
 import { PopularPostsSection } from './PopularPostsSection';
-import { CalibrationOfferCard, OutfitSection, SensitivityFeelingsSection, YesterdaySection } from './FeelingSections';
-import { CurrentWeatherSection, DailyForecastSection, HourlyForecastSection, WeatherAttribution } from './WeatherSections';
+import {
+  CalibrationOfferCard,
+  NeighborsSummaryRow,
+  OutfitSection,
+  SensitivityFeelingsSection,
+  YesterdaySection,
+} from './FeelingSections';
+import {
+  CurrentWeatherSection,
+  DailyForecastSection,
+  HourlyForecastSection,
+  WeatherAttribution,
+} from './WeatherSections';
 
 export type HomeContentProps = {
   home: HomeView;
@@ -26,16 +38,18 @@ export type HomeContentProps = {
   refreshing: boolean;
   onRefresh: () => void;
   onOpenSwitch: () => void;
+  /** 머리 오른쪽 알림 종 → 알림 설정 */
+  onOpenNotifications?: () => void;
   /** 회원이면 피드백을 바로 저장하고 보정 제안 카드를 보여준다. 기본 비회원 */
   isMember?: boolean;
   /** 알림 등으로 가리킨 섹션(경로 파라미터 focus). 자리가 잡히면 한 번 스크롤하고 강조한다 */
   focus?: HomeFocus | null;
 };
 
-const KIND_LABEL: Record<ViewingKind, string> = {
-  current: '📍 현재 동네',
-  interest: '★ 관심 동네',
-  searched: '둘러보는 동네',
+const KIND_LABEL: Record<ViewingKind, { text: string; icon: ComponentProps<typeof Ionicons>['name'] }> = {
+  current: { text: '현재 동네', icon: 'location' },
+  interest: { text: '관심 동네', icon: 'star' },
+  searched: { text: '둘러보는 동네', icon: 'search' },
 };
 
 export function HomeContent({
@@ -46,6 +60,7 @@ export function HomeContent({
   refreshing,
   onRefresh,
   onOpenSwitch,
+  onOpenNotifications,
   isMember = false,
   focus = null,
 }: HomeContentProps) {
@@ -94,24 +109,38 @@ export function HomeContent({
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       testID="home-scroll"
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${neighborhood.fullName}, 동네 바꾸기`}
-        onPress={onOpenSwitch}
-        style={styles.header}
-        testID="home-header"
-      >
-        <AppText variant="caption" tone="secondary">
-          {KIND_LABEL[viewingKind]}
-        </AppText>
-        <View style={styles.headerName}>
-          <AppText variant="title">{neighborhood.eupmyeondongName}</AppText>
-          <AppText tone="secondary">▾</AppText>
-        </View>
-        <AppText variant="caption" tone="secondary">
-          {`${neighborhood.sidoName} ${neighborhood.sigunguName}`}
-        </AppText>
-      </Pressable>
+      <View style={styles.headerRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${neighborhood.fullName}, 동네 바꾸기`}
+          onPress={onOpenSwitch}
+          style={styles.header}
+          testID="home-header"
+        >
+          <View style={styles.headerKind}>
+            <Ionicons name={KIND_LABEL[viewingKind].icon} size={13} color={colors.primary} />
+            <AppText variant="caption" style={styles.headerKindText}>
+              {KIND_LABEL[viewingKind].text}
+            </AppText>
+          </View>
+          <View style={styles.headerName}>
+            <AppText variant="largeTitle">{neighborhood.eupmyeondongName}</AppText>
+            <Ionicons name="chevron-down" size={22} color={colors.textPrimary} />
+          </View>
+        </Pressable>
+        {onOpenNotifications ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="알림 설정"
+            hitSlop={8}
+            onPress={onOpenNotifications}
+            style={styles.bell}
+            testID="home-notifications"
+          >
+            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+      </View>
 
       {cachedSavedAt ? (
         <View style={styles.notice} testID="cached-home-notice">
@@ -125,7 +154,22 @@ export function HomeContent({
       ) : null}
 
       {/* 순서는 07 SCR-01: 날씨 요약 → 예보 vs 주민 → 이웃 체감 → 현장 제보 → 인기글 → 옷차림 → 어제 비교 → 시간별·중기 예보 */}
-      <CurrentWeatherSection section={home.currentWeather} onRetry={retry} />
+      <CurrentWeatherSection
+        section={home.currentWeather}
+        onRetry={retry}
+        daily={home.dailyForecast.data}
+        hourly={home.hourlyForecast.data}
+      >
+        <NeighborsSummaryRow
+          home={home}
+          onPress={() =>
+            scrollRef.current?.scrollTo({
+              y: feelingsY.current,
+              animated: true,
+            })
+          }
+        />
+      </CurrentWeatherSection>
       <DivergenceBadges home={home} onRetry={retry} />
       {isMember ? <CalibrationOfferCard section={home.calibrationOffer} /> : null}
       <View onLayout={(event) => (feelingsY.current = event.nativeEvent.layout.y)}>
@@ -157,8 +201,23 @@ export function HomeContent({
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
-  header: { gap: 2, paddingVertical: spacing.xs },
-  headerName: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  header: {
+    flex: 1,
+    gap: 2,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  bell: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerKind: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  headerKindText: { color: colors.primary, fontWeight: '700' },
+  headerName: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   notice: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,

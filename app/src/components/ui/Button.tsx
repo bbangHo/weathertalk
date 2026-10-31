@@ -10,7 +10,8 @@ export type ButtonProps = {
   title: string;
   /** Promise를 돌려주면 끝날 때까지 자동으로 비활성·로딩 표시한다. */
   onPress: () => void | Promise<unknown>;
-  variant?: 'primary' | 'secondary';
+  /** plain: 바탕 없이 글자만(세그먼트 칸처럼 회색 판 안에 둘 때) */
+  variant?: 'primary' | 'secondary' | 'plain';
   disabled?: boolean;
   /** 바깥에서 요청 중임을 알려줄 때(예: mutation.isPending) */
   pending?: boolean;
@@ -50,6 +51,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, pending,
   }, [inactive, onPress]);
 
   const isPrimary = variant === 'primary';
+  const isPlain = variant === 'plain';
   return (
     <Pressable
       testID={testID}
@@ -59,14 +61,18 @@ export function Button({ title, onPress, variant = 'primary', disabled, pending,
       onPress={handlePress}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.secondary,
+        isPrimary ? styles.primary : isPlain ? styles.plain : styles.secondary,
         pressed && isPrimary && styles.primaryPressed,
-        inactive && styles.inactive,
+        pressed && isPlain && styles.plainPressed,
+        inactive && !isPlain && styles.inactive,
       ]}
     >
       <View style={styles.content}>
         {busy ? <ActivityIndicator size="small" color={isPrimary ? colors.onPrimary : colors.primary} /> : null}
-        <AppText variant="button" tone={inactive ? 'disabled' : isPrimary ? 'onPrimary' : 'primary'}>
+        <AppText
+          variant="button"
+          tone={inactive ? 'disabled' : isPrimary ? 'onPrimary' : isPlain ? 'secondary' : 'primary'}
+        >
           {title}
         </AppText>
       </View>
@@ -85,6 +91,8 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.primary },
   primaryPressed: { backgroundColor: colors.primaryPressed },
   secondary: { backgroundColor: colors.surfaceMuted },
+  plain: { backgroundColor: 'transparent', minHeight: 44, paddingHorizontal: spacing.sm },
+  plainPressed: { backgroundColor: colors.surface },
   inactive: { backgroundColor: colors.disabledBackground },
   content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

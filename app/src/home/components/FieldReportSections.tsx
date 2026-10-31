@@ -36,7 +36,7 @@ export function DivergenceBadges({ home, onRetry }: { home: HomeView; onRetry: R
     <View style={styles.badges} testID="divergence-badges">
       {badges.map((axis) => (
         <View key={axis.axis} style={styles.badge} testID={`divergence-${axis.axis}`} accessibilityRole="summary">
-          <AppText variant="caption" tone="secondary">
+          <AppText variant="caption" style={styles.badgeLabel}>
             예보 vs 주민
           </AppText>
           <AppText>{divergenceText(axis)}</AppText>
@@ -120,12 +120,12 @@ export function FieldReportSection({
 
 const styles = StyleSheet.create({
   badges: { gap: spacing.sm },
+  badgeLabel: { color: colors.warningText, fontWeight: '700' },
   badge: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.warning,
-    padding: spacing.md,
+    backgroundColor: colors.warningSoft,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md + 2,
+    paddingHorizontal: spacing.lg,
     gap: 2,
   },
   body: { gap: spacing.md },

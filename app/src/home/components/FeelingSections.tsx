@@ -1,5 +1,6 @@
 // SCR-01 4·5·8·9번 + 민감도 보정 제안 카드 (07 SCR-01, §1.2·1.3, 04 FR-FEL-04·05·08)
 // 내 그룹 강조·옷 추천 기준 그룹은 home 응답(personal)을 그대로 쓴다. 판단은 하지 않는다(§1.5).
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -32,9 +33,10 @@ const GROUP_COLOR: Record<TemperatureSensitivity, string> = {
   COLD_SENSITIVE: colors.coldSensitive,
 };
 
+// 추움 → 맞음 → 더움 순서(A′). 처음엔 아무것도 고르지 않은 상태다.
 const ANSWERS: { answer: FeedbackAnswer; label: string }[] = [
-  { answer: 'RIGHT', label: '맞아요' },
   { answer: 'COLDER', label: '더 추워요' },
+  { answer: 'RIGHT', label: '맞아요' },
   { answer: 'HOTTER', label: '더 더워요' },
 ];
 
@@ -50,6 +52,66 @@ function usePickGuestSensitivity() {
     await generalStore.set('guestTemperatureSensitivity', value);
     await queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
   };
+}
+
+// ── A′ 날씨 카드 안 한 줄: 내 그룹(없으면 기준 그룹) 체감과 그 출처. 누르면 아래 3그룹 카드로 ──
+
+/** 한 줄 요약에 쓰는 해요체 체감 문구(서버 태그 이름 그대로 대응) */
+const TEMPERATURE_PHRASE: Record<string, string> = {
+  VERY_COLD: '매우 추워요',
+  COLD: '추워요',
+  SLIGHTLY_COLD: '조금 추워요',
+  JUST_RIGHT: '딱 좋아요',
+  SLIGHTLY_HOT: '조금 더워요',
+  HOT: '더워요',
+  VERY_HOT: '매우 더워요',
+};
+
+/** 결과가 어디서 왔는지와 그 뜻(점검 5-2): 주민 기록이 아니면 기록이 아직 적다고 밝힌다. */
+function sourceDetail(feeling: SensitivityFeeling): string {
+  if (feeling.source === 'NEIGHBORHOOD_FEELING') {
+    return feeling.sampleCount
+      ? `${SOURCE_TEXT[feeling.source]} ${feeling.sampleCount}건`
+      : SOURCE_TEXT[feeling.source];
+  }
+  return `${SOURCE_TEXT[feeling.source]} · 이 동네 기록이 아직 적어요`;
+}
+
+export function NeighborsSummaryRow({ home, onPress }: { home: HomeView; onPress: () => void }) {
+  const label = useHomeTagLabeler();
+  const groups = home.sensitivityFeelings.data?.groups ?? [];
+  const mine = home.personal.highlightedGroup;
+  const group = mine ?? home.personal.basisGroup;
+  const feeling = groups.find((item) => item.temperatureSensitivity === group) ?? null;
+  if (!feeling) {
+    return null;
+  }
+  const who = mine ? '나 같은 사람은' : `${SENSITIVITY_LABEL[group]} 기준으로는`;
+  const tag = TEMPERATURE_PHRASE[feeling.temperatureTag] ?? label(feeling.temperatureTag);
+  const source = sourceDetail(feeling);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${who} ${tag}, ${source}. 체질별 체감 보기`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.summary, pressed && styles.summaryPressed]}
+      testID="neighbors-summary"
+    >
+      <View style={styles.summaryBadge}>
+        <Ionicons name="people-outline" size={18} color={colors.primary} />
+      </View>
+      <View style={styles.summaryText}>
+        <AppText>
+          {`${who} `}
+          <AppText style={styles.summaryTag}>{tag}</AppText>
+        </AppText>
+        <AppText variant="caption" tone="secondary">
+          {source}
+        </AppText>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textDisabled} />
+    </Pressable>
+  );
 }
 
 // ── 3·4번: 민감도별 체감 3그룹 + 체감 피드백 ──
@@ -73,29 +135,40 @@ export function SensitivityFeelingsSection({
   const mine = home.personal.highlightedGroup;
   const myFeeling = mine ? (groups.find((group) => group.temperatureSensitivity === mine) ?? null) : null;
 
+  const [showGroups, setShowGroups] = useState(false);
+
+  // A′: 내 그룹 결과는 날씨 카드 한 줄에 있으니 여기서는 내 느낌 남기기가 먼저다. 체질별 결과는 한 단계 안쪽.
   return (
-    <Card title="나 같은 사람은 지금" testID="section-sensitivity-feelings">
+    <Card title="지금 내 느낌은?" testID="section-sensitivity-feelings">
       <SectionState status={status} onRetry={onRetry}>
-        <View style={styles.groups}>
-          {SENSITIVITY_ORDER.map((group) => (
-            <GroupCard
-              key={group}
-              group={group}
-              feeling={groups.find((item) => item.temperatureSensitivity === group) ?? null}
-              highlighted={group === mine}
-              label={label}
-            />
-          ))}
-        </View>
         {mine === null && !isMember ? <SensitivityChips /> : null}
         {myFeeling ? (
-          <FeedbackArea
-            home={home}
-            shown={myFeeling}
-            viewingKind={viewingKind}
-            isMember={isMember}
-            label={label}
-          />
+          <FeedbackArea home={home} shown={myFeeling} viewingKind={viewingKind} isMember={isMember} label={label} />
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showGroups }}
+          onPress={() => setShowGroups((value) => !value)}
+          style={styles.groupsToggle}
+          testID="feelings-groups-toggle"
+        >
+          <AppText variant="caption" tone="secondary" style={styles.groupsToggleText}>
+            {showGroups ? '체질별 결과 접기' : '체질별 결과 보기'}
+          </AppText>
+          <Ionicons name={showGroups ? 'chevron-up' : 'chevron-forward'} size={14} color={colors.textDisabled} />
+        </Pressable>
+        {showGroups ? (
+          <View style={styles.groups}>
+            {SENSITIVITY_ORDER.map((group) => (
+              <GroupCard
+                key={group}
+                group={group}
+                feeling={groups.find((item) => item.temperatureSensitivity === group) ?? null}
+                highlighted={group === mine}
+                label={label}
+              />
+            ))}
+          </View>
         ) : null}
       </SectionState>
     </Card>
@@ -175,7 +248,8 @@ function FeedbackArea({
   useRestoredAction('feedback', ({ action, notice }) => {
     const before = ANSWERS.find((item) => item.answer === action.payload.answer)?.label ?? '';
     setRestoredNotice(
-      notice ?? `가입 전에 '${before}'를 골랐어요. 내 그룹(${SENSITIVITY_LABEL[shown.temperatureSensitivity]}) 체감을 보고 다시 답해 주세요.`,
+      notice ??
+        `가입 전에 '${before}'를 골랐어요. 내 그룹(${SENSITIVITY_LABEL[shown.temperatureSensitivity]}) 체감을 보고 다시 답해 주세요.`,
     );
   });
 
@@ -186,7 +260,7 @@ function FeedbackArea({
   return (
     <View style={styles.feedback} testID="feedback-area">
       <AppText variant="caption" tone="secondary">
-        {`지금 ${label(shown.temperatureTag)}, 맞나요?`}
+        답하면 위 결과가 바로 바뀌어요
       </AppText>
       {restoredNotice ? (
         <AppText tone="primary" testID="feedback-restored">
@@ -198,7 +272,7 @@ function FeedbackArea({
           <View key={answer} style={styles.answer}>
             <Button
               title={text}
-              variant="secondary"
+              variant="plain"
               disabled={!available}
               onPress={() => {
                 setRestoredNotice(null);
@@ -216,7 +290,7 @@ function FeedbackArea({
       ) : null}
       {state.status === 'saved' ? (
         <AppText tone="primary" testID="feedback-saved">
-          기록됐어요
+          기록했어요
         </AppText>
       ) : null}
       {available && recent ? (
@@ -237,9 +311,12 @@ function FeedbackArea({
 
 function outfitText(outfit: Outfit): string {
   const part = (name: string, items: string[]) => `${name} ${items.length > 0 ? items.join(', ') : '없음'}`;
-  return [part('겉옷', outfit.outer), part('상의', outfit.top), part('하의', outfit.bottom), part('소품', outfit.accessories)].join(
-    ' · ',
-  );
+  return [
+    part('겉옷', outfit.outer),
+    part('상의', outfit.top),
+    part('하의', outfit.bottom),
+    part('소품', outfit.accessories),
+  ].join(' · ');
 }
 
 function failedText(section: HomeSection<unknown>): string {
@@ -265,7 +342,12 @@ export function OutfitSection({
         {personal.selectionSuggested ? '보통 기준' : `${SENSITIVITY_LABEL[personal.basisGroup]} 기준`}
       </AppText>
       {personal.selectionSuggested ? (
-        <Button title="내 민감도 고르기" variant="secondary" onPress={onPickSensitivity} testID="outfit-pick-sensitivity" />
+        <Button
+          title="내 민감도 고르기"
+          variant="secondary"
+          onPress={onPickSensitivity}
+          testID="outfit-pick-sensitivity"
+        />
       ) : null}
       <SectionState
         status={uiStatus(outfit)}
@@ -291,7 +373,9 @@ export function OutfitSection({
               ))}
               {departureOutfit.data.recommendation ? (
                 <>
-                  <AppText tone="secondary">{outfitText(departureOutfit.data.recommendation.recommendation.outfit)}</AppText>
+                  <AppText tone="secondary">
+                    {outfitText(departureOutfit.data.recommendation.recommendation.outfit)}
+                  </AppText>
                   {departureOutfit.data.recommendation.layeringGuide ? (
                     <AppText tone="secondary">{departureOutfit.data.recommendation.layeringGuide}</AppText>
                   ) : null}
@@ -299,7 +383,11 @@ export function OutfitSection({
               ) : null}
             </>
           ) : (
-            <SectionState status="failed" failedMessage={`외출 시각 기준: ${failedText(departureOutfit)}`} onRetry={onRetry} />
+            <SectionState
+              status="failed"
+              failedMessage={`외출 시각 기준: ${failedText(departureOutfit)}`}
+              onRetry={onRetry}
+            />
           )}
         </View>
       ) : null}
@@ -343,7 +431,9 @@ export function CalibrationOfferCard({ section }: { section: HomeSection<Calibra
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.home.all }),
       queryClient.invalidateQueries({ queryKey: queryKeys.me.profile() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.calibrationOffer() }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.calibrationOffer(),
+      }),
     ]);
 
   const run = async (call: () => Promise<unknown>) => {
@@ -404,7 +494,26 @@ export function CalibrationOfferCard({ section }: { section: HomeSection<Calibra
 }
 
 const styles = StyleSheet.create({
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radii.md,
+  },
+  summaryPressed: { opacity: 0.6 },
+  summaryBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryText: { flex: 1, gap: 1 },
+  summaryTag: { color: colors.primary, fontWeight: '700' },
   groups: { flexDirection: 'row', gap: spacing.sm },
+  groupsToggle: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32, marginTop: spacing.xs },
+  groupsToggleText: { flex: 1, fontWeight: '700' },
   group: {
     flex: 1,
     gap: 2,
@@ -424,7 +533,13 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   feedback: { gap: spacing.sm, marginTop: spacing.md },
-  answers: { flexDirection: 'row', gap: spacing.sm },
+  answers: {
+    flexDirection: 'row',
+    gap: 2,
+    padding: 3,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceMuted,
+  },
   answer: { flex: 1 },
   lines: { gap: spacing.xs },
 });

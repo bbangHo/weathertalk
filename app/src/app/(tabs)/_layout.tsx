@@ -2,9 +2,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LeaveTabButton } from '@/components/navigation/LeaveTabButton';
-import { TAB_ICON_SIZE, tabLabelStyle } from '@/components/navigation/tabBar';
+import { floatingTabBarStyle, tabItemStyle, TAB_ICON_SIZE, tabLabelStyle } from '@/components/navigation/tabBar';
 import { colors } from '@/theme';
 
 type IconProps = ComponentProps<typeof Ionicons>;
@@ -17,13 +18,18 @@ function tabIcon(name: IconProps['name'], outline: IconProps['name']) {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // A′: 화면 아래에서 띄운 둥근 탭. 바깥 여백이 기기 아래 안전 영역을 맡으므로 탭 안쪽에는 넣지 않는다.
   return (
     <Tabs
+      safeAreaInsets={{ bottom: 0 }}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveBackgroundColor: colors.primarySoft,
         tabBarLabelStyle: tabLabelStyle,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarItemStyle: tabItemStyle,
+        tabBarStyle: [floatingTabBarStyle, { marginBottom: insets.bottom + 12 }],
         sceneStyle: { backgroundColor: colors.background },
       }}
     >

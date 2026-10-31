@@ -79,7 +79,7 @@ describe('첫 실행 (SCR-12)', () => {
 
     await waitFor(() => expect(screen).toHavePathname('/'));
     expect(await screen.findByText('역삼1동')).toBeTruthy();
-    expect(screen.getByText('📍 현재 동네')).toBeTruthy();
+    expect(screen.getByText('현재 동네')).toBeTruthy();
     const homeCall = calls.find((call) => pathOf(call) === '/api/v1/home');
     expect(new URL(homeCall!.url).searchParams.get('neighborhoodId')).toBe('N1');
     await expect(generalStore.get('currentNeighborhood')).resolves.toMatchObject({ neighborhoodId: 'N1' });

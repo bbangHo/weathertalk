@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { homeView, slot } from '@/test-utils/homeFixtures';
+import { homeView, sensitivityFeelingsOk, slot } from '@/test-utils/homeFixtures';
 
 import { HomeContent, type HomeContentProps } from '../components/HomeContent';
 import { weatherIconOf } from '../components/WeatherIcon';
@@ -43,14 +43,21 @@ describe('홈 헤더', () => {
   it('보는 동네 이름과 현재 동네 표시, 누르면 동네 전환', () => {
     const { onOpenSwitch } = renderHome(homeView());
     expect(screen.getByText('역삼1동')).toBeTruthy();
-    expect(screen.getByText('📍 현재 동네')).toBeTruthy();
+    expect(screen.getByText('현재 동네')).toBeTruthy();
     fireEvent.press(screen.getByTestId('home-header'));
     expect(onOpenSwitch).toHaveBeenCalled();
   });
 
+  it('알림 종을 누르면 알림 설정으로 간다', () => {
+    const onOpenNotifications = jest.fn();
+    renderHome(homeView(), { onOpenNotifications });
+    fireEvent.press(screen.getByTestId('home-notifications'));
+    expect(onOpenNotifications).toHaveBeenCalled();
+  });
+
   it('관심 동네·둘러보는 동네 표시', () => {
     renderHome(homeView(), { viewingKind: 'interest' });
-    expect(screen.getByText('★ 관심 동네')).toBeTruthy();
+    expect(screen.getByText('관심 동네')).toBeTruthy();
   });
 });
 
@@ -81,7 +88,8 @@ describe('현재 날씨', () => {
     openCurrentDetails();
     const section = within(screen.getByTestId('section-current-weather'));
     expect(section.getByText('18°')).toBeTruthy();
-    expect(section.getByText('맑음(밤)')).toBeTruthy();
+    // 하늘 상태는 해요체로(A′): 맑은 밤
+    expect(section.getByText('맑은 밤이에요')).toBeTruthy();
     expect(section.getByText('17.2°')).toBeTruthy();
     expect(section.getByText('보통 (4)')).toBeTruthy();
     expect(section.getByText('모자, 선글라스 이용')).toBeTruthy();
@@ -151,6 +159,37 @@ describe('섹션 상태 (07 §1.4)', () => {
   });
 });
 
+describe('날씨 카드(A′)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('오늘 칸이 있으면 최고·최저를 그대로, 없으면 그 줄을 그리지 않는다', () => {
+    jest.useFakeTimers({ now: new Date('2026-10-15T03:00:00Z') });
+    renderHome(homeView());
+    const hiLo = within(screen.getByTestId('today-hi-lo'));
+    expect(hiLo.getByText('최고 20°')).toBeTruthy();
+    expect(hiLo.getByText('최저 10°')).toBeTruthy();
+  });
+
+  it('오늘이 아닌 날짜뿐이면 최고·최저 줄이 없다', () => {
+    jest.useFakeTimers({ now: new Date('2026-10-20T03:00:00Z') });
+    renderHome(homeView());
+    expect(screen.queryByTestId('today-hi-lo')).toBeNull();
+  });
+
+  it('카드 안 한 줄에 기준 그룹 체감과 출처를 보여 준다', () => {
+    renderHome(homeView({ sensitivityFeelings: sensitivityFeelingsOk() }));
+    const row = screen.getByTestId('neighbors-summary');
+    expect(row.props.accessibilityLabel).toMatch(/^보통 기준으로는 /);
+    expect(row.props.accessibilityLabel).toContain('딱 좋아요');
+    expect(within(row).getByText('비슷한 날씨의 기록 · 이 동네 기록이 아직 적어요')).toBeTruthy();
+  });
+
+  it('다음 시간 예보를 최대 6칸 보여 준다', () => {
+    renderHome(homeView());
+    expect(within(screen.getByTestId('current-weather-hourly-strip')).getByText('22시')).toBeTruthy();
+  });
+});
+
 describe('시간별 예보', () => {
   it('같은 시(時)가 다른 날짜로 와도 지우지 않고, 날짜가 바뀌는 곳에 표시를 넣는다', () => {
     const slots = [slot('2026-10-15', 23, 14), slot('2026-10-16', 0, 13), slot('2026-10-16', 23, 12), slot('2026-10-17', 23, 11)];
@@ -165,8 +204,10 @@ describe('시간별 예보', () => {
 
     const base = homeView();
     renderHome({ ...base, hourlyForecast: { ...base.hourlyForecast, data: { ...base.hourlyForecast.data!, slots } } });
+    // 날씨 카드의 앞 6시간 줄에도 같은 시각이 나오므로 시간별 예보 섹션 안에서만 센다.
+    const hourly = within(screen.getByTestId('section-hourly'));
     expect(screen.getAllByTestId('hourly-slot')).toHaveLength(4);
-    expect(screen.getAllByText('23시')).toHaveLength(3);
+    expect(hourly.getAllByText('23시')).toHaveLength(3);
     expect(screen.getAllByTestId('hourly-date-marker')).toHaveLength(2);
     expect(screen.getByText('10월 16일 (금)')).toBeTruthy();
   });
@@ -175,7 +216,7 @@ describe('시간별 예보', () => {
     const slots = [slot('2026-10-15', 9, 14), slot('2026-10-15', 9, 14)];
     const base = homeView();
     renderHome({ ...base, hourlyForecast: { ...base.hourlyForecast, data: { ...base.hourlyForecast.data!, slots } } });
-    expect(screen.getAllByText('9시')).toHaveLength(2);
+    expect(within(screen.getByTestId('section-hourly')).getAllByText('9시')).toHaveLength(2);
   });
 });
 

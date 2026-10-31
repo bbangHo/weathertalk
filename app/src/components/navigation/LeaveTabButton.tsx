@@ -37,9 +37,7 @@ export function LeaveTabButton() {
         onPress={() => setOpen(true)}
         style={styles.tabButton}
       >
-        <View style={styles.circle}>
-          <Ionicons name="add" size={TAB_ICON_SIZE - 2} color={colors.onPrimary} />
-        </View>
+        <Ionicons name="add" size={TAB_ICON_SIZE} color={colors.textSecondary} />
         <Text style={[tabLabelStyle, styles.tabLabel]}>남기기</Text>
       </Pressable>
 
@@ -83,14 +81,6 @@ export function LeaveTabButton() {
 
 const styles = StyleSheet.create({
   tabButton: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  circle: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   tabLabel: { color: colors.textSecondary },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
   sheet: {

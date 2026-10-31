@@ -70,9 +70,22 @@ const withFeelings = (overrides: Partial<HomeView> = {}) =>
     ...overrides,
   });
 
+/** 체질별 결과는 '지금 내 느낌은?' 카드 안에 접혀 있어 펼친 뒤 확인한다(A′). */
+function openGroups() {
+  fireEvent.press(screen.getByTestId('feelings-groups-toggle'));
+}
+
 describe('민감도별 체감 3그룹 (SCR-01 4번)', () => {
+  it('체질별 결과는 처음엔 접혀 있고 누르면 펼쳐진다', () => {
+    renderHome(withFeelings());
+    expect(screen.queryByTestId('group-NORMAL')).toBeNull();
+    openGroups();
+    expect(screen.getByTestId('group-NORMAL')).toBeTruthy();
+  });
+
   it('세 그룹의 체감 태그와 산출 출처 문구를 보여주고 내 그룹을 강조한다', () => {
     renderHome(withFeelings());
+    openGroups();
     const heat = within(screen.getByTestId('group-HEAT_SENSITIVE'));
     expect(heat.getByText('조금 더움')).toBeTruthy();
     expect(heat.getByText('이 동네 주민 기록')).toBeTruthy();
@@ -88,6 +101,7 @@ describe('민감도별 체감 3그룹 (SCR-01 4번)', () => {
   it('민감도를 고르지 않은 비회원은 강조 없이 "나는 어느 쪽?" 칩 — 고르면 기기에 저장하고 홈을 다시 부른다', async () => {
     const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
     renderHome(withFeelings({ personal: { highlightedGroup: null, basisGroup: 'NORMAL', selectionSuggested: true } }));
+    openGroups();
 
     for (const group of ['HEAT_SENSITIVE', 'NORMAL', 'COLD_SENSITIVE']) {
       expect(screen.getByTestId(`group-${group}`).props.accessibilityState.selected).toBe(false);
@@ -118,6 +132,7 @@ describe('민감도별 체감 3그룹 (SCR-01 4번)', () => {
         }),
       }),
     );
+    openGroups();
     expect(within(screen.getByTestId('group-HEAT_SENSITIVE')).getByText('정보 없음')).toBeTruthy();
   });
 });
@@ -149,7 +164,7 @@ describe('체감 피드백 버튼 (SCR-01 5번)', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('회원: 보여준 값·좌표·요청 식별자로 저장하고 "기록됐어요", 이전 기록이 있으면 덮어쓰기 안내', async () => {
+  it('회원: 보여준 값·좌표·요청 식별자로 저장하고 "기록했어요", 이전 기록이 있으면 덮어쓰기 안내', async () => {
     await sessionStore.saveTokens(tokens('m'));
     await viewingStore.applyJudgement('N1', new Date().toISOString());
     const { calls } = installFetch((call) =>

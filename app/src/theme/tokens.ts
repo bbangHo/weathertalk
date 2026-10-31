@@ -35,6 +35,15 @@ export const colors = {
   weatherCloud: '#8A94A6',
   weatherRain: '#2F6FED',
   weatherSnow: '#5FA8E8',
+
+  // 홈 A′(애플 스타일): 하늘 그라데이션 바탕 위 흰 반투명 카드
+  skyTop: '#9CCBFF',
+  skyMid: '#D6EAFF',
+  glass: 'rgba(255, 255, 255, 0.78)',
+  glassEdge: 'rgba(255, 255, 255, 0.7)',
+  // 예보 vs 주민 배너(색으로 뜻을 전하므로 불투명)
+  warningSoft: '#FFF4E5',
+  warningText: '#8A4B08',
 } as const;
 
 export const spacing = {
@@ -53,12 +62,16 @@ export const radii = {
   /** 버튼·입력칸 */
   md: 14,
   /** 카드 */
-  lg: 20,
+  lg: 24,
   pill: 999,
 } as const;
 
 export const typography = {
   display: { fontSize: 28, lineHeight: 36, fontWeight: '800' },
+  /** 탭 첫 화면 큰 제목(홈 동네 이름) */
+  largeTitle: { fontSize: 34, lineHeight: 41, fontWeight: '800', letterSpacing: -0.7 },
+  /** 홈 날씨 카드의 큰 기온: 가늘게, 자간을 좁혀 */
+  hero: { fontSize: 96, lineHeight: 100, fontWeight: '300', letterSpacing: -4 },
   title: { fontSize: 22, lineHeight: 30, fontWeight: '800' },
   heading: { fontSize: 18, lineHeight: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 22, fontWeight: '400' },

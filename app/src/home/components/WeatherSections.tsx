@@ -15,7 +15,6 @@ import {
   percentText,
   precipitationTypeText,
   rawNumberText,
-  skyText,
   temperatureText,
   windText,
 } from '../format';
@@ -23,7 +22,10 @@ import { buildHourlyItems, uiStatus } from '../hourly';
 import type { CurrentObservation, DailyForecast, DailyForecastDay, HomeSection, HourlyForecast } from '../types';
 import { WeatherIcon } from './WeatherIcon';
 
-type SectionProps<T> = { section: HomeSection<T>; onRetry: () => void | Promise<unknown> };
+type SectionProps<T> = {
+  section: HomeSection<T>;
+  onRetry: () => void | Promise<unknown>;
+};
 
 export function Card({
   title,
@@ -84,56 +86,189 @@ function precipitationText(observation: CurrentObservation): string {
   return amount ? `${precipitationTypeText(type)} ${amount}` : precipitationTypeText(type);
 }
 
-export function CurrentWeatherSection({ section, onRetry }: SectionProps<CurrentObservation>) {
+/** 날씨 카드 맨 위 하늘 상태(해요체)와 그 색. 강수가 있으면 강수가 먼저다. 색만으로 뜻을 전하지 않게 글자로도 쓴다. */
+export function skyPhrase(observation: Pick<CurrentObservation, 'sky' | 'dayNight' | 'precipitationType'>): {
+  text: string;
+  color: string;
+} {
+  switch (observation.precipitationType) {
+    case 'RAIN':
+      return { text: '비가 와요', color: colors.weatherRain };
+    case 'SHOWER':
+      return { text: '소나기가 와요', color: colors.weatherRain };
+    case 'SNOW':
+      return { text: '눈이 와요', color: colors.weatherSnow };
+    case 'RAIN_SNOW':
+      return { text: '비나 눈이 와요', color: colors.weatherSnow };
+    default:
+      break;
+  }
+  const night = observation.dayNight === 'NIGHT';
+  switch (observation.sky) {
+    case 'CLEAR':
+      return night
+        ? { text: '맑은 밤이에요', color: colors.weatherMoon }
+        : { text: '맑아요', color: colors.warningText };
+    case 'MOSTLY_CLOUDY':
+      return { text: '구름이 많아요', color: colors.textSecondary };
+    case 'OVERCAST':
+      return { text: '흐려요', color: colors.textSecondary };
+    default:
+      return { text: '하늘 정보 없음', color: colors.textSecondary };
+  }
+}
+
+function summaryLine(observation: CurrentObservation): string {
+  const parts = [
+    `체감 ${temperatureText(observation.feelsLike)}`,
+    observation.precipitationPhrase ?? `강수 ${precipitationText(observation)}`,
+  ];
+  const air = observation.airQuality;
+  const grade = air?.pm10Grade ?? air?.combinedGrade ?? null;
+  if (grade) {
+    parts.push(`미세먼지 ${airGradeText(grade)}`);
+  }
+  return parts.join(' · ');
+}
+
+/** KST 시각(시) */
+function kstHour(now: number = Date.now()): number {
+  return new Date(now + 9 * 60 * 60 * 1000).getUTCHours();
+}
+
+/** 오늘(KST) 날짜 문자열 YYYY-MM-DD */
+function kstToday(now: number = Date.now()): string {
+  return new Date(now + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * A′ 날씨 카드: 하늘 그라데이션 위 흰 반투명 카드. 하늘 상태 → 큰 기온 → 최고·최저 → 요약 줄,
+ * 그 아래 구분선으로 나눠 '나 같은 사람'(children)과 다음 몇 시간 예보를 둔다.
+ * 최고·최저는 중기 예보의 오늘 칸 값 그대로이고, 오늘 칸이 없으면 줄을 그리지 않는다.
+ */
+export function CurrentWeatherSection({
+  section,
+  onRetry,
+  daily = null,
+  hourly = null,
+  children,
+}: SectionProps<CurrentObservation> & {
+  daily?: DailyForecast | null;
+  hourly?: HourlyForecast | null;
+  children?: ReactNode;
+}) {
   const observation = section.data;
+  const today = daily?.days.find((day) => day.date === kstToday()) ?? null;
   return (
-    <Card title="지금 날씨" testID="section-current-weather">
+    <View style={styles.glassCard} testID="section-current-weather" accessibilityLabel="지금 날씨">
       <SectionState status={uiStatus(section)} emptyMessage="지금 날씨 정보가 없어요" onRetry={onRetry}>
-        {observation ? <CurrentWeatherBody observation={observation} /> : null}
+        {observation ? (
+          <CurrentWeatherBody observation={observation} today={today} hourly={hourly}>
+            {children}
+          </CurrentWeatherBody>
+        ) : null}
       </SectionState>
-    </Card>
+    </View>
   );
 }
 
 /** 기온·하늘·요약 한 줄·관측 시각만 먼저 보이고, 나머지 수치와 대기질 출처는 '자세히'를 눌러 펼친다(SCR-01 2). */
-function CurrentWeatherBody({ observation }: { observation: CurrentObservation }) {
+function CurrentWeatherBody({
+  observation,
+  today,
+  hourly,
+  children,
+}: {
+  observation: CurrentObservation;
+  today: DailyForecastDay | null;
+  hourly: HourlyForecast | null;
+  children?: ReactNode;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const nextSlots = (hourly?.slots ?? []).slice(0, 6);
+  const sky = skyPhrase(observation);
+  const todayDate = kstToday();
+  const hourNow = kstHour();
   return (
-    <View style={styles.body}>
+    <View style={styles.glassBody}>
       <View style={styles.hero}>
+        <View style={styles.heroText}>
+          <AppText variant="heading" style={{ color: sky.color }} testID="current-sky-phrase">
+            {sky.text}
+          </AppText>
+          <AppText variant="hero" accessibilityLabel={`기온 ${temperatureText(observation.temperature)}`}>
+            {temperatureText(observation.temperature, 0)}
+          </AppText>
+          {today ? (
+            <View style={styles.hiLo} testID="today-hi-lo">
+              <AppText style={styles.hiLoText}>{`최고 ${temperatureText(today.maxTemperature, 0)}`}</AppText>
+              <AppText tone="secondary" style={styles.hiLoText}>
+                {`최저 ${temperatureText(today.minTemperature, 0)}`}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
         <WeatherIcon
           sky={observation.sky}
           dayNight={observation.dayNight}
           precipitationType={observation.precipitationType}
-          size={48}
+          size={56}
           testID="current-weather-icon"
         />
-        <View style={styles.heroText}>
-          <View style={styles.heroLine}>
-            <AppText variant="display">{temperatureText(observation.temperature)}</AppText>
-            <AppText tone="secondary">{skyText(observation.sky, observation.dayNight)}</AppText>
-          </View>
-          <AppText variant="caption" tone="secondary">
-            {`체감 ${temperatureText(observation.feelsLike)} · ${observation.precipitationPhrase ?? `강수 ${precipitationText(observation)}`}`}
-          </AppText>
-        </View>
       </View>
-      <AppText variant="caption" tone="secondary" testID="observation-time">
-        {observationTimeText(observation)}
+      <AppText variant="caption" tone="secondary">
+        {summaryLine(observation)}
       </AppText>
-      {expanded ? <CurrentWeatherDetails observation={observation} /> : null}
-      <Pressable
-        testID="current-weather-toggle"
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        onPress={() => setExpanded((value) => !value)}
-        style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}
-      >
-        <AppText variant="button" tone="secondary">
-          {expanded ? '접기' : '습도·바람·자외선·미세먼지 자세히'}
+      {children ? (
+        <>
+          <View style={styles.hairline} />
+          {children}
+        </>
+      ) : null}
+      {nextSlots.length > 0 ? (
+        <>
+          <View style={styles.hairline} />
+          <View style={styles.strip} testID="current-weather-hourly-strip">
+            {nextSlots.map((slot, index) => {
+              const isNow = index === 0 && slot.date === todayDate && slot.hour === hourNow;
+              return (
+                <View key={`strip-${index}`} style={styles.stripSlot}>
+                  <AppText variant="caption" tone={isNow ? 'primary' : 'secondary'} style={isNow && styles.stripNow}>
+                    {isNow ? '지금' : `${slot.hour}시`}
+                  </AppText>
+                  <WeatherIcon
+                    sky={slot.sky}
+                    dayNight={slot.dayNight}
+                    precipitationType={slot.precipitationType}
+                    size={22}
+                  />
+                  <AppText style={styles.stripTemp}>{temperatureText(slot.temperature, 0)}</AppText>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
+      <View style={styles.meta}>
+        <AppText variant="caption" tone="secondary" testID="observation-time" style={styles.metaTime}>
+          {observationTimeText(observation)}
         </AppText>
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
-      </Pressable>
+        <Pressable
+          testID="current-weather-toggle"
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? '세부 접기' : '습도·바람·자외선·미세먼지 자세히'}
+          accessibilityState={{ expanded }}
+          hitSlop={8}
+          onPress={() => setExpanded((value) => !value)}
+          style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}
+        >
+          <AppText variant="caption" tone="secondary" style={styles.toggleText}>
+            {expanded ? '접기' : '자세히'}
+          </AppText>
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
+        </Pressable>
+      </View>
+      {expanded ? <CurrentWeatherDetails observation={observation} /> : null}
     </View>
   );
 }
@@ -306,34 +441,77 @@ const styles = StyleSheet.create({
   },
   cardEmphasized: { borderColor: colors.primary, borderWidth: 2 },
   body: { gap: spacing.sm },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  glassCard: {
+    backgroundColor: colors.glass,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: colors.glassEdge,
+    padding: 22,
+    shadowColor: '#1E3A66',
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  glassBody: { gap: spacing.md },
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   heroText: { flex: 1 },
-  heroLine: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  hiLo: { flexDirection: 'row', gap: spacing.md },
+  hiLoText: { fontWeight: '700' },
+  hairline: { height: 1, backgroundColor: colors.border },
+  strip: { flexDirection: 'row', justifyContent: 'space-between' },
+  stripSlot: { alignItems: 'center', gap: spacing.xs, minWidth: 40 },
+  stripTemp: { fontWeight: '700' },
+  stripNow: { fontWeight: '700' },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  metaTime: { flex: 1 },
   toggle: {
-    minHeight: 44,
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    borderRadius: radii.md,
-    backgroundColor: colors.background,
+    gap: 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
   },
   togglePressed: { backgroundColor: colors.surfaceMuted },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xs },
+  toggleText: { fontWeight: '700' },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
   hourlyList: { gap: spacing.md, alignItems: 'stretch' },
   hourlySlot: { alignItems: 'center', gap: spacing.xs, minWidth: 44 },
-  hourlySlotEmphasized: { borderRadius: radii.md, borderWidth: 2, borderColor: colors.primary, paddingHorizontal: spacing.xs },
+  hourlySlotEmphasized: {
+    borderRadius: radii.md,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.xs,
+  },
   dateMarker: {
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
   },
-  dailyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },
+  dailyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: 32,
+  },
   dailyDate: { flex: 1 },
   dailyIcons: { flexDirection: 'row', gap: spacing.xs },
-  dailyTemps: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.xs, width: 80 },
+  dailyTemps: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+    width: 80,
+  },
   dailyTemp: { minWidth: 32, textAlign: 'right' },
   attribution: { textAlign: 'center' },
 });

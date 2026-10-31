@@ -1,5 +1,6 @@
 // SCR-01 홈 (07 SCR-01, §1.4-4, §2, §7.3). 첫 실행이면 첫 실행 안내로, 보는 동네가 없으면 "동네를 골라 주세요".
 // 경로 파라미터 focus(hourly·field-report)면 그 섹션으로 스크롤해 강조한다.
+import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -90,20 +91,30 @@ function HomeBody() {
     interestIds: (interests.query.data ?? []).map((item) => item.id),
   });
 
+  // A′: 하늘 그라데이션은 화면에 고정하고, 카드만 그 위로 스크롤한다.
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <HomeContent
-        home={home}
-        viewingKind={kind}
-        cachedSavedAt={cachedSavedAt}
-        refreshFailed={cachedSavedAt !== null && query.isError}
-        refreshing={pulling}
-        onRefresh={refresh}
-        onOpenSwitch={() => router.push(routes.neighborhoodSwitch())}
-        isMember={session.status === 'member'}
-        focus={focus}
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[colors.skyTop, colors.skyMid, colors.background]}
+        locations={[0, 0.35, 0.75]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
       />
-    </SafeAreaView>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <HomeContent
+          home={home}
+          viewingKind={kind}
+          cachedSavedAt={cachedSavedAt}
+          refreshFailed={cachedSavedAt !== null && query.isError}
+          refreshing={pulling}
+          onRefresh={refresh}
+          onOpenSwitch={() => router.push(routes.neighborhoodSwitch())}
+          onOpenNotifications={() => router.push(routes.notificationSettings())}
+          isMember={session.status === 'member'}
+          focus={focus}
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -120,6 +131,7 @@ function PickNeighborhood() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
   center: {
     flex: 1,
     alignItems: 'center',
