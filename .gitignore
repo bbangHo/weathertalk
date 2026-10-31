@@ -6,3 +6,6 @@
 # 비밀값·외부 키 (변수 목록은 .env.example)
 .env
 !.env.example
+
+# 문서는 저장소에 올리지 않는다(로컬에만 둔다)
+docs/
