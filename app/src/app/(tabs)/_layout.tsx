@@ -5,7 +5,9 @@ import type { ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LeaveTabButton } from '@/components/navigation/LeaveTabButton';
+import { SideBar } from '@/components/navigation/SideBar';
 import { floatingTabBarStyle, tabItemStyle, TAB_ICON_SIZE, tabLabelStyle } from '@/components/navigation/tabBar';
+import { useWideLayout } from '@/platform/wideLayout';
 import { colors } from '@/theme';
 
 type IconProps = ComponentProps<typeof Ionicons>;
@@ -19,11 +21,15 @@ function tabIcon(name: IconProps['name'], outline: IconProps['name']) {
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const wide = useWideLayout();
   // A′: 화면 아래에서 띄운 둥근 탭. 바깥 여백이 기기 아래 안전 영역을 맡으므로 탭 안쪽에는 넣지 않는다.
+  // 넓은 화면(PC 웹)은 같은 탭을 왼쪽 사이드바로 그린다.
   return (
     <Tabs
       safeAreaInsets={{ bottom: 0 }}
+      tabBar={wide ? (props) => <SideBar {...props} /> : undefined}
       screenOptions={{
+        tabBarPosition: wide ? 'left' : 'bottom',
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarActiveBackgroundColor: colors.primarySoft,

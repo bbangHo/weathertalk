@@ -27,6 +27,7 @@ import { routes } from '@/navigation/routes';
 import { useRestoredAction } from '@/pending/pendingAction';
 import { writeGate } from '@/pending/writeGate';
 import { Alert } from '@/platform/alert';
+import { useWideLayout } from '@/platform/wideLayout';
 import { queryKeys } from '@/query/queryKeys';
 import { colors, radii, spacing } from '@/theme';
 
@@ -59,7 +60,17 @@ function errorText(error: unknown, fallback: string): string {
   return isApiError(error) && error.detail ? error.detail : fallback;
 }
 
-export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'comments' }) {
+/** onGone: 지워진 글을 떠날 때. 넓은 화면 커뮤니티 분할에서는 이전 화면으로 가지 않고 선택만 푼다. */
+export function PostDetailScreen({
+  postId,
+  focus,
+  onGone = goBack,
+}: {
+  postId: string;
+  focus?: 'comments';
+  onGone?: () => void;
+}) {
+  const wide = useWideLayout();
   const queryClient = useQueryClient();
   const route = postDetailRoute(postId);
   const detail = useQuery({
@@ -86,9 +97,9 @@ export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'c
       return;
     }
     invalidatePostLists(queryClient).catch(() => undefined);
-    const timer = setTimeout(goBack, DELETED_BACK_DELAY_MS);
+    const timer = setTimeout(onGone, DELETED_BACK_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [notFound, queryClient]);
+  }, [notFound, queryClient, onGone]);
 
   const tryScrollToComments = () => {
     if (focus === 'comments' && !scrolled.current && commentsY.current !== null) {
@@ -101,7 +112,7 @@ export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'c
     return (
       <SafeAreaView style={styles.center} edges={['left', 'right']} testID="post-deleted">
         <AppText variant="heading">{POST_DELETED}</AppText>
-        <Button title="돌아가기" variant="secondary" onPress={goBack} />
+        <Button title="돌아가기" variant="secondary" onPress={onGone} />
       </SafeAreaView>
     );
   }
@@ -157,7 +168,7 @@ export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'c
             await deletePost(api, postId);
             queryClient.removeQueries({ queryKey: queryKeys.community.post(postId) });
             await invalidatePostLists(queryClient);
-            goBack();
+            onGone();
           } catch (error) {
             setMessage(errorText(error, '글을 지우지 못했어요. 다시 시도해 주세요.'));
           }
@@ -184,7 +195,7 @@ export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'c
     ]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={[styles.root, wide && styles.rootWide]} edges={['left', 'right', 'bottom']}>
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.content}
@@ -262,7 +273,13 @@ export function PostDetailScreen({ postId, focus }: { postId: string; focus?: 'c
           {moreError ? <AppText tone="danger">댓글을 더 불러오지 못했어요</AppText> : null}
         </View>
       </ScrollView>
-      <CommentComposer ref={composerRef} postId={postId} route={route} comments={allComments} onPosted={refreshAfterChange} />
+      <CommentComposer
+        ref={composerRef}
+        postId={postId}
+        route={route}
+        comments={allComments}
+        onPosted={refreshAfterChange}
+      />
       <Modal visible={viewer !== null} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
         <Pressable
           style={styles.viewer}
@@ -332,7 +349,6 @@ function CommentItem({
     </View>
   );
 }
-
 
 type ComposerHandle = { replyTo: (comment: CommentView) => void };
 
@@ -455,6 +471,8 @@ const CommentComposer = forwardRef<
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  // 넓은 화면: 공유 링크로 글만 연 경우에도 읽기 좋은 폭의 가운데 열
+  rootWide: { width: '100%', maxWidth: 720, alignSelf: 'center' },
   loading: { marginTop: spacing.xl },
   padded: { padding: spacing.lg },
   center: {

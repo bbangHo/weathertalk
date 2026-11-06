@@ -1,7 +1,7 @@
 // SCR-06 피드: 페이지 이어 불러오기, 빈 상태, 글쓰기 버튼(현재 동네만), 좋아요(낙관적·실패 되돌림·본인 글·비회원 보류·복귀 자동 적용)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { InfiniteData } from '@tanstack/react-query';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { signupSheet } from '@/auth/signupSheet';
@@ -13,7 +13,7 @@ import { queryKeys } from '@/query/queryKeys';
 import { sessionStore } from '@/session/sessionStore';
 import { generalStore } from '@/storage';
 import { jsonResponse, problem, tokens, type FakeCall } from '@/test-utils/apiClient';
-import { page, post } from '@/test-utils/communityFixtures';
+import { detail, page, post } from '@/test-utils/communityFixtures';
 import { installFetch, pathOf } from '@/test-utils/globalFetch';
 import { neighborhoodResponse } from '@/test-utils/homeFixtures';
 import { renderWithClient, testQueryClient } from '@/test-utils/render';
@@ -26,6 +26,9 @@ import type { PostPage } from '../types';
 // 팩토리 안에서는 import를 쓸 수 없다(호이스팅).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-router', () => require('@/test-utils/routerMock').expoRouterMock());
+
+let mockWide = false;
+jest.mock('@/platform/wideLayout', () => ({ useWideLayout: () => mockWide }));
 
 async function setViewing(viewingId: string, currentId: string | null) {
   await generalStore.set('onboardingCompleted', true);
@@ -62,6 +65,7 @@ beforeEach(async () => {
   signupSheet.setMounted(false);
   viewingStore.reset();
   resetRouterMock();
+  mockWide = false;
 });
 
 describe('피드 목록', () => {
@@ -249,5 +253,24 @@ describe('좋아요', () => {
     const cached = client.getQueryData<InfiniteData<PostPage>>(queryKeys.community.feed('N1'));
     expect(cached?.pages[0].items[0]).toMatchObject({ likedByViewer: true, likeCount: 3 });
     setActiveQueryClient(null);
+  });
+});
+
+describe('넓은 화면(PC) 목록 | 상세', () => {
+  it('맨 위 글을 옆에 열고, 다른 글을 누르면 이동하지 않고 옆 상세만 바꾼다', async () => {
+    mockWide = true;
+    await setViewing('N1', 'N1');
+    server(
+      () => jsonResponse(200, page([post('p1'), post('p2')])),
+      (call) => jsonResponse(200, detail(post(pathOf(call).split('/').pop()!))),
+    );
+    renderWithClient(<FeedScreen />);
+
+    const pane = await screen.findByTestId('feed-detail-pane');
+    expect(await within(pane).findByText('본문 p1')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('open-post-p2'));
+    expect(await within(screen.getByTestId('feed-detail-pane')).findByText('본문 p2')).toBeTruthy();
+    expect(mockRouter.push).not.toHaveBeenCalled();
   });
 });

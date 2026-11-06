@@ -16,11 +16,13 @@ import { useNeighborhoodDetail } from '@/neighborhood/hooks';
 import { useViewingState } from '@/neighborhood/viewingStore';
 import { routes } from '@/navigation/routes';
 import { useRestoredAction } from '@/pending/pendingAction';
+import { useWideLayout } from '@/platform/wideLayout';
 import { queryKeys } from '@/query/queryKeys';
 import { colors, radii, spacing } from '@/theme';
 
 import { fetchFeed } from './api';
 import { PostCard } from './components/PostParts';
+import { PostDetailScreen } from './PostDetailScreen';
 import { useLikeAction } from './likes';
 import type { PostPage } from './types';
 
@@ -47,8 +49,7 @@ export function useFeed(neighborhoodId: string | null) {
     queryKey: queryKeys.community.feed(neighborhoodId ?? ''),
     enabled: neighborhoodId !== null,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam, signal }) =>
-      fetchFeed(api, neighborhoodId!, pageParam, getAppParams().feedPageSize, signal),
+    queryFn: ({ pageParam, signal }) => fetchFeed(api, neighborhoodId!, pageParam, getAppParams().feedPageSize, signal),
     getNextPageParam: (last: PostPage) => last.nextCursor ?? undefined,
     // 변경 후 무효화로만 다시 부른다(07 §5). 탭 전환마다 다시 부르지 않는다.
     staleTime: Infinity,
@@ -64,6 +65,9 @@ export function FeedScreen() {
   const feed = useFeed(viewingId);
   const likes = useLikeAction(FEED_ROUTE);
   const [pulling, setPulling] = useState(false);
+  const wide = useWideLayout();
+  // 넓은 화면: 목록 옆에 고른 글을 연다. 고르기 전에는 맨 위 글.
+  const [selected, setSelected] = useState<string | null>(null);
 
   useRestoredAction('like', ({ notice }) => likes.setNotice(notice));
 
@@ -141,47 +145,69 @@ export function FeedScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.root} edges={['left', 'right']}>
-      <FlatList
-        testID="feed-list"
-        data={body ? [] : posts}
-        keyExtractor={(item) => item.postId}
-        contentContainerStyle={styles.content}
-        ListHeaderComponent={
-          <>
-            {header}
-            {body}
-          </>
-        }
-        renderItem={({ item }) => (
+  const shown = selected ?? posts[0]?.postId ?? null;
+  const list = (
+    <FlatList
+      testID="feed-list"
+      data={body ? [] : posts}
+      keyExtractor={(item) => item.postId}
+      contentContainerStyle={styles.content}
+      ListHeaderComponent={
+        <>
+          {header}
+          {body}
+        </>
+      }
+      renderItem={({ item }) => (
+        <View style={wide && item.postId === shown ? styles.selected : undefined}>
           <PostCard
             post={item}
-            onOpen={() => router.push(routes.postDetail(item.postId))}
+            onOpen={() => (wide ? setSelected(item.postId) : router.push(routes.postDetail(item.postId)))}
             onLike={() => likes.toggle(item)}
             likePending={likes.isPending(item.postId)}
           />
-        )}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        onEndReachedThreshold={0.5}
-        onEndReached={() => {
-          if (feed.hasNextPage && !feed.isFetchingNextPage && !feed.isError) {
-            feed.fetchNextPage().catch(() => undefined);
-          }
-        }}
-        ListFooterComponent={
-          feed.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : feed.isError && posts.length > 0 ? (
-            <SectionState
-              status="failed"
-              failedMessage="다음 글을 불러오지 못했어요"
-              onRetry={() => feed.fetchNextPage()}
-            />
-          ) : null
+        </View>
+      )}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      onEndReachedThreshold={0.5}
+      onEndReached={() => {
+        if (feed.hasNextPage && !feed.isFetchingNextPage && !feed.isError) {
+          feed.fetchNextPage().catch(() => undefined);
         }
-        refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} />}
-      />
+      }}
+      ListFooterComponent={
+        feed.isFetchingNextPage ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : feed.isError && posts.length > 0 ? (
+          <SectionState
+            status="failed"
+            failedMessage="다음 글을 불러오지 못했어요"
+            onRetry={() => feed.fetchNextPage()}
+          />
+        ) : null
+      }
+      refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} />}
+    />
+  );
+
+  return (
+    <SafeAreaView style={styles.root} edges={['left', 'right']}>
+      {wide ? (
+        <View style={styles.split}>
+          <View style={styles.listPane}>{list}</View>
+          <View style={styles.detailPane} testID="feed-detail-pane">
+            {shown ? (
+              <PostDetailScreen key={shown} postId={shown} onGone={() => setSelected(null)} />
+            ) : (
+              <AppText tone="secondary" style={styles.detailEmpty}>
+                글을 고르면 여기에 보여요
+              </AppText>
+            )}
+          </View>
+        </View>
+      ) : (
+        list
+      )}
     </SafeAreaView>
   );
 }
@@ -200,4 +226,9 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
   header: { gap: spacing.sm, marginBottom: spacing.md, borderRadius: radii.md },
   separator: { height: spacing.md },
+  split: { flex: 1, flexDirection: 'row' },
+  listPane: { width: 440 },
+  detailPane: { flex: 1, borderLeftWidth: 1, borderLeftColor: colors.border },
+  detailEmpty: { marginTop: spacing.xxl, textAlign: 'center' },
+  selected: { borderRadius: radii.lg, borderWidth: 2, borderColor: colors.primary },
 });

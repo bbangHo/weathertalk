@@ -6,6 +6,7 @@ import { type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, StyleShe
 import { AppText, Button } from '@/components/ui';
 import type { ViewingKind } from '@/neighborhood/viewingStore';
 import type { HomeFocus } from '@/navigation/routes';
+import { useWideLayout } from '@/platform/wideLayout';
 import { colors, radii, spacing } from '@/theme';
 
 import { focusScrollY } from '../focus';
@@ -64,6 +65,7 @@ export function HomeContent({
   isMember = false,
   focus = null,
 }: HomeContentProps) {
+  const wide = useWideLayout();
   const scrollRef = useRef<ScrollView>(null);
   const feelingsY = useRef(0);
   const positions = useRef<Partial<Record<HomeFocus, number>>>({});
@@ -102,10 +104,55 @@ export function HomeContent({
   const neighborhood = home.neighborhood;
   // 섹션별 다시 시도는 home 전체 재조회로 한다(07 §1.4-5).
   const retry = () => onRefresh();
+  const current = (
+    <CurrentWeatherSection
+      section={home.currentWeather}
+      onRetry={retry}
+      daily={home.dailyForecast.data}
+      hourly={home.hourlyForecast.data}
+    >
+      <NeighborsSummaryRow
+        home={home}
+        onPress={() =>
+          scrollRef.current?.scrollTo({
+            y: feelingsY.current,
+            animated: true,
+          })
+        }
+      />
+    </CurrentWeatherSection>
+  );
+  const divergence = <DivergenceBadges home={home} onRetry={retry} />;
+  const calibration = isMember ? <CalibrationOfferCard section={home.calibrationOffer} /> : null;
+  const feelings = (
+    <View onLayout={(event) => (feelingsY.current = event.nativeEvent.layout.y)}>
+      <SensitivityFeelingsSection home={home} viewingKind={viewingKind} isMember={isMember} onRetry={retry} />
+    </View>
+  );
+  const fieldReport = (
+    <View onLayout={onFieldReportLayout} testID="focus-anchor-field-report">
+      <FieldReportSection home={home} viewingKind={viewingKind} emphasized={focus === 'field-report'} onRetry={retry} />
+    </View>
+  );
+  const popular = <PopularPostsSection home={home} viewingKind={viewingKind} onRetry={retry} />;
+  const outfit = (
+    <OutfitSection
+      home={home}
+      onRetry={retry}
+      onPickSensitivity={() => scrollRef.current?.scrollTo({ y: feelingsY.current, animated: true })}
+    />
+  );
+  const yesterday = <YesterdaySection home={home} onRetry={retry} />;
+  const hourly = (
+    <View onLayout={onHourlyLayout} testID="focus-anchor-hourly">
+      <HourlyForecastSection section={home.hourlyForecast} onRetry={retry} emphasized={focus === 'hourly'} />
+    </View>
+  );
+  const daily = <DailyForecastSection section={home.dailyForecast} onRetry={retry} />;
   return (
     <ScrollView
       ref={scrollRef}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, wide && styles.contentWide]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       testID="home-scroll"
     >
@@ -153,54 +200,57 @@ export function HomeContent({
         </View>
       ) : null}
 
-      {/* 순서는 07 SCR-01: 날씨 요약 → 예보 vs 주민 → 이웃 체감 → 현장 제보 → 인기글 → 옷차림 → 어제 비교 → 시간별·중기 예보 */}
-      <CurrentWeatherSection
-        section={home.currentWeather}
-        onRetry={retry}
-        daily={home.dailyForecast.data}
-        hourly={home.hourlyForecast.data}
-      >
-        <NeighborsSummaryRow
-          home={home}
-          onPress={() =>
-            scrollRef.current?.scrollTo({
-              y: feelingsY.current,
-              animated: true,
-            })
-          }
-        />
-      </CurrentWeatherSection>
-      <DivergenceBadges home={home} onRetry={retry} />
-      {isMember ? <CalibrationOfferCard section={home.calibrationOffer} /> : null}
-      <View onLayout={(event) => (feelingsY.current = event.nativeEvent.layout.y)}>
-        <SensitivityFeelingsSection home={home} viewingKind={viewingKind} isMember={isMember} onRetry={retry} />
-      </View>
-      <View onLayout={onFieldReportLayout} testID="focus-anchor-field-report">
-        <FieldReportSection
-          home={home}
-          viewingKind={viewingKind}
-          emphasized={focus === 'field-report'}
-          onRetry={retry}
-        />
-      </View>
-      <PopularPostsSection home={home} viewingKind={viewingKind} onRetry={retry} />
-      <OutfitSection
-        home={home}
-        onRetry={retry}
-        onPickSensitivity={() => scrollRef.current?.scrollTo({ y: feelingsY.current, animated: true })}
-      />
-      <YesterdaySection home={home} onRetry={retry} />
-      <View onLayout={onHourlyLayout} testID="focus-anchor-hourly">
-        <HourlyForecastSection section={home.hourlyForecast} onRetry={retry} emphasized={focus === 'hourly'} />
-      </View>
-      <DailyForecastSection section={home.dailyForecast} onRetry={retry} />
-      <WeatherAttribution />
+      {wide ? (
+        // PC-3: 왼쪽은 날씨(지금·시간별·주간), 오른쪽은 이웃·동네. 섹션 위치는 각 열 안 기준이라 강조 이동이 머리 높이만큼 덜 내려간다.
+        <View style={styles.columns}>
+          <View style={styles.weatherColumn}>
+            {current}
+            {hourly}
+            {daily}
+            {yesterday}
+            <WeatherAttribution />
+          </View>
+          <View style={styles.neighborColumn}>
+            {divergence}
+            {calibration}
+            {feelings}
+            {fieldReport}
+            {popular}
+            {outfit}
+          </View>
+        </View>
+      ) : (
+        <>
+          {/* 순서는 07 SCR-01: 날씨 요약 → 예보 vs 주민 → 이웃 체감 → 현장 제보 → 인기글 → 옷차림 → 어제 비교 → 시간별·중기 예보 */}
+          {current}
+          {divergence}
+          {calibration}
+          {feelings}
+          {fieldReport}
+          {popular}
+          {outfit}
+          {yesterday}
+          {hourly}
+          {daily}
+          <WeatherAttribution />
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
+  contentWide: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xxl,
+    paddingTop: spacing.xl,
+  },
+  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
+  weatherColumn: { flex: 5, gap: spacing.md },
+  neighborColumn: { flex: 4, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'flex-end' },
   header: {
     flex: 1,

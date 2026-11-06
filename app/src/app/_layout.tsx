@@ -9,19 +9,27 @@ import '@/community/likes';
 import { AppLifecycle } from '@/entry/AppLifecycle';
 import { stackScreenOptions } from '@/navigation/stackOptions';
 import { AlertHost } from '@/platform/alert';
+import { useWideLayout } from '@/platform/wideLayout';
 import { AppProviders } from '@/providers/AppProviders';
 
 // 세션 복원·기기 저장값 읽기가 끝날 때까지 스플래시를 유지한다(07 §2-9). 내리는 곳은 AppLifecycle.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
+// 넓은 화면(PC 웹): 탭 밖 화면(첫 실행·동네 검색·남기기 폼 등)은 가운데 열로 읽기 좋은 폭만 쓴다.
+const wideScreenOptions = {
+  ...stackScreenOptions,
+  contentStyle: { ...stackScreenOptions.contentStyle, width: '100%', maxWidth: 720, alignSelf: 'center' },
+} as const;
+
 export default function RootLayout() {
+  const wide = useWideLayout();
   return (
     <AppProviders>
       <AppLifecycle />
       <AuthGate />
       <StatusBar style="dark" />
-      <Stack screenOptions={stackScreenOptions}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack screenOptions={wide ? wideScreenOptions : stackScreenOptions}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: stackScreenOptions.contentStyle }} />
         <Stack.Screen
           name="neighborhood-switch"
           options={{ presentation: 'formSheet', title: '동네 전환', sheetAllowedDetents: [0.5, 1] }}
