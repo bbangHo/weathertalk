@@ -1,6 +1,8 @@
 // 기기 로컬 저장소 래퍼 (07 §6.1). 선언된 키만 읽고 쓴다.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { demoStorage } from '@/demo/demoMode';
+
 import {
   GENERAL_KEYS,
   type GeneralKey,
@@ -10,7 +12,11 @@ import {
   type SecureSchema,
   STORAGE_KEY_PREFIX,
 } from './schema';
-import * as SecureStore from './secureBackend';
+import * as SecureBackend from './secureBackend';
+
+// 데모 모드(/preview)면 기기 저장소 대신 메모리를 쓴다 — 진짜 기기 저장값을 읽거나 덮어쓰지 않는다.
+const SecureStore = demoStorage ?? SecureBackend;
+const GeneralBackend = demoStorage ?? AsyncStorage;
 
 export class UndeclaredStorageKeyError extends Error {
   constructor(key: string) {
@@ -81,19 +87,19 @@ export const secureStore = {
 export const generalStore = {
   async get<K extends GeneralKey>(key: K): Promise<GeneralSchema[K] | null> {
     assertDeclared(key, GENERAL_KEYS);
-    return parse<GeneralSchema[K]>(await AsyncStorage.getItem(storageKey(key)));
+    return parse<GeneralSchema[K]>(await GeneralBackend.getItem(storageKey(key)));
   },
   async set<K extends GeneralKey>(key: K, value: GeneralSchema[K]): Promise<void> {
     assertDeclared(key, GENERAL_KEYS);
     if (containsCoordinates(value)) {
       throw new CoordinateStorageError(key);
     }
-    await AsyncStorage.setItem(storageKey(key), JSON.stringify(value));
+    await GeneralBackend.setItem(storageKey(key), JSON.stringify(value));
   },
   async remove(...keys: GeneralKey[]): Promise<void> {
     keys.forEach((key) => assertDeclared(key, GENERAL_KEYS));
     if (keys.length > 0) {
-      await AsyncStorage.multiRemove(keys.map(storageKey));
+      await GeneralBackend.multiRemove(keys.map(storageKey));
     }
   },
 };

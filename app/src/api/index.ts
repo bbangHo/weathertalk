@@ -1,5 +1,6 @@
 // 앱 전역 API 클라이언트 인스턴스
 import { API_BASE_URL } from '@/config/env';
+import { demoFetch } from '@/demo/demoMode';
 import { sessionStore } from '@/session/sessionStore';
 import { secureStore } from '@/storage';
 
@@ -13,6 +14,8 @@ export const api = createApiClient({
   session: sessionStore,
   getDeviceCredential: () => secureStore.get('deviceCredential'),
   events: apiEvents,
+  // 데모 모드(/preview)면 진짜 서버 대신 메모리 가짜 서버로 보낸다.
+  fetchFn: demoFetch,
 });
 
 export * from './errors';

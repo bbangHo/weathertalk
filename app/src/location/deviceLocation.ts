@@ -1,6 +1,7 @@
 // OS 위치 권한·좌표 (07 §2 규칙 3·5, ADR 0009). 좌표는 이 모듈 밖으로 동네 판정 요청 본문으로만 나가고 저장·로그하지 않는다.
 import * as Location from 'expo-location';
 
+import { DEMO_MODE } from '@/demo/demoMode';
 import type { LocationPermission } from '@/entry/entryDecision';
 import type { LocationRequest } from '@/neighborhood/types';
 
@@ -19,6 +20,9 @@ function toPermission(status: Location.PermissionStatus): LocationPermission {
 
 /** 권한 창을 띄우지 않고 상태만 본다. 확인 실패는 권한 없음으로 본다. */
 export async function getLocationPermission(): Promise<PermissionResult> {
+  if (DEMO_MODE) {
+    return { permission: 'granted', canAskAgain: true };
+  }
   try {
     const response = await Location.getForegroundPermissionsAsync();
     return { permission: toPermission(response.status), canAskAgain: response.canAskAgain };
@@ -29,6 +33,9 @@ export async function getLocationPermission(): Promise<PermissionResult> {
 
 /** OS 권한 창. 첫 실행 안내의 "위치 사용하기"·동네 전환의 "켜기" 뒤에서만 부른다(규칙 3). */
 export async function requestLocationPermission(): Promise<PermissionResult> {
+  if (DEMO_MODE) {
+    return { permission: 'granted', canAskAgain: true };
+  }
   try {
     const response = await Location.requestForegroundPermissionsAsync();
     return { permission: toPermission(response.status), canAskAgain: response.canAskAgain };
@@ -42,6 +49,10 @@ export async function requestLocationPermission(): Promise<PermissionResult> {
  * 정확도는 함께 보내 서버가 판단하게 한다.
  */
 export async function getLocationForJudgement(): Promise<LocationRequest> {
+  if (DEMO_MODE) {
+    // 데모: 브라우저 위치를 묻지 않고 역삼역 근처로 둔다(가짜 서버는 좌표와 상관없이 역삼1동으로 판정).
+    return { latitude: 37.5007, longitude: 127.0365, accuracyMeters: 30 };
+  }
   const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
   const accuracy = position.coords.accuracy;
   return {

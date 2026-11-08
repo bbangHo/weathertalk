@@ -2,10 +2,12 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { View } from 'react-native';
 
 import { AuthGate } from '@/auth/AuthGate';
 // 좋아요 보류 행동의 자동 적용 처리기를 앱 시작 때 등록한다(07 §3 규칙 4).
 import '@/community/likes';
+import { DemoBadge } from '@/demo/DemoBadge';
 import { AppLifecycle } from '@/entry/AppLifecycle';
 import { stackScreenOptions } from '@/navigation/stackOptions';
 import { AlertHost } from '@/platform/alert';
@@ -28,19 +30,23 @@ export default function RootLayout() {
       <AppLifecycle />
       <AuthGate />
       <StatusBar style="dark" />
-      <Stack screenOptions={wide ? wideScreenOptions : stackScreenOptions}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: stackScreenOptions.contentStyle }} />
-        <Stack.Screen
-          name="neighborhood-switch"
-          options={{ presentation: 'formSheet', title: '동네 전환', sheetAllowedDetents: [0.5, 1] }}
-        />
-        <Stack.Screen name="neighborhood-search" options={{ presentation: 'modal', title: '동네 검색' }} />
-        <Stack.Screen name="feeling-record" options={{ presentation: 'modal', title: '체감 기록' }} />
-        <Stack.Screen name="field-report" options={{ presentation: 'modal', title: '현장 제보' }} />
-        <Stack.Screen name="post-editor" options={{ presentation: 'modal', title: '글쓰기' }} />
-        <Stack.Screen name="signup" options={{ presentation: 'modal', title: '가입' }} />
-        <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
-      </Stack>
+      <DemoBadge />
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={wide ? wideScreenOptions : stackScreenOptions}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false, contentStyle: stackScreenOptions.contentStyle }} />
+          <Stack.Screen
+            name="neighborhood-switch"
+            options={{ presentation: 'formSheet', title: '동네 전환', sheetAllowedDetents: [0.5, 1] }}
+          />
+          <Stack.Screen name="neighborhood-search" options={{ presentation: 'modal', title: '동네 검색' }} />
+          <Stack.Screen name="feeling-record" options={{ presentation: 'modal', title: '체감 기록' }} />
+          <Stack.Screen name="field-report" options={{ presentation: 'modal', title: '현장 제보' }} />
+          <Stack.Screen name="post-editor" options={{ presentation: 'modal', title: '글쓰기' }} />
+          <Stack.Screen name="signup" options={{ presentation: 'modal', title: '가입' }} />
+          <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="preview" options={{ headerShown: false }} />
+        </Stack>
+      </View>
       <AlertHost />
     </AppProviders>
   );
