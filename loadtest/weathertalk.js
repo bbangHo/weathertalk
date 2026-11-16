@@ -2,6 +2,7 @@
 //   SCENARIO=smoke|load|stress|spike (기본 smoke)
 //   BASE_URL      대상 서버 (기본 http://localhost:18080)
 //   PEAK_RPS      load의 목표 RPS (기본 20). spike·stress는 이 값의 배수로 움직인다
+//   HOT_SHARE     인기 동네 5곳에 몰리는 요청 비율 (기본 0.4). 나머지는 전국 3,564개 동네에 고르게 퍼진다
 //   USERS         setup에서 만들 테스트 회원 수 (기본: smoke 3, 그 밖 50)
 //   ALLOW_REMOTE  로컬이 아닌 서버에 쏘려면 1. 미리보기·운영 서버는 사용자 확인 없이 쓰지 않는다
 import http from 'k6/http';
@@ -10,6 +11,7 @@ import { check, fail } from 'k6';
 const SCENARIO = __ENV.SCENARIO || 'smoke';
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:18080').replace(/\/$/, '');
 const PEAK = Number(__ENV.PEAK_RPS || 20);
+const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.4);
 const USERS = Math.max(2, Number(__ENV.USERS || (SCENARIO === 'smoke' ? 3 : 50))); // 좋아요는 남의 글이어야 해서 2명 이상
 
 // 실수로 공개 데모(미리보기)나 운영에 부하를 주지 않게 막는다.
@@ -17,7 +19,7 @@ if (!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:\d+)?$/.test(
   throw new Error(`로컬이 아닌 대상(${BASE_URL})입니다. 사용자 확인을 받았으면 ALLOW_REMOTE=1 을 붙이세요.`);
 }
 
-// 씨앗 동네를 흉내 낸 고정 좌표. 쓰기는 이 좌표로 동네가 정해지고, 읽기도 이 동네들에 몰린다(실제 트래픽의 쏠림).
+// 인기 동네(씨앗 동네) 좌표. 요청의 HOT_SHARE가 여기에 몰리고, 나머지는 전국 동네에 퍼진다(MAU 3만이 전국에 흩어진 모습).
 const SPOTS = [
   { lat: 37.5006, lon: 127.0364 }, // 서울 강남구 역삼
   { lat: 37.5045, lon: 127.0050 }, // 서울 서초구 반포
@@ -107,6 +109,20 @@ export function setup() {
     return Object.assign({ id: r.json('id') }, s);
   });
 
+  // 전국 동네 목록: 시도 → 시군구 → 동네 단계 조회(약 270건). 대표점 좌표로 쓰기 위치를 만든다.
+  const all = [];
+  for (const sido of http.get(`${BASE_URL}/api/v1/neighborhoods/regions`).json('names')) {
+    const sigungus = http.get(`${BASE_URL}/api/v1/neighborhoods/regions?sido=${encodeURIComponent(sido)}`).json('names');
+    const pages = http.batch(sigungus.map((sg) => ['GET',
+      `${BASE_URL}/api/v1/neighborhoods/regions?sido=${encodeURIComponent(sido)}&sigungu=${encodeURIComponent(sg)}`]));
+    for (const page of pages) {
+      for (const n of page.json('neighborhoods')) {
+        if (n.representativePoint) all.push({ id: n.id, lat: n.representativePoint.latitude, lon: n.representativePoint.longitude });
+      }
+    }
+  }
+  if (all.length < 1000) fail(`전국 동네 목록이 너무 적습니다(${all.length}).`);
+
   // 상세·좋아요 대상 글을 동네마다 하나씩 만들어 둔다. 내 글에는 좋아요할 수 없어(SELF_LIKE_NOT_ALLOWED) 작성자를 기억한다.
   const posts = neighborhoods.map((nb, i) => {
     const r = http.post(`${BASE_URL}/api/v1/community/posts`,
@@ -115,7 +131,7 @@ export function setup() {
     if (r.status !== 200) fail(`준비 글 작성 실패(${r.status}): ${r.body}`);
     return { id: r.json('postId'), author: i % tokens.length };
   });
-  return { tokens, neighborhoods, posts };
+  return { tokens, neighborhoods, all, posts };
 }
 
 // 요청 하나 = 반복 하나. 가중치 합 100 = 읽기 88 : 쓰기 12 (README '읽기·쓰기 비율').
@@ -133,7 +149,7 @@ function chooseAction() {
 const ok = (res, name) => check(res, { [`${name} 2xx`]: (r) => r.status >= 200 && r.status < 300 });
 
 export default function (data) {
-  const nb = pick(data.neighborhoods);
+  const nb = Math.random() < HOT_SHARE ? pick(data.neighborhoods) : pick(data.all);
   const token = pick(data.tokens);
   const member = Math.random() < 0.6; // 읽기 요청의 60%는 회원, 나머지는 비회원
   const read = (name) => ({ tags: { name, kind: 'read' } });
@@ -149,6 +165,8 @@ export default function (data) {
       ok(res, 'home');
       // 섹션 시간 초과·오류는 200 안에 status FAILED로 숨는다(07 §1.4). 따로 센다.
       check(res, { 'home 섹션 실패 없음': (r) => !String(r.body).includes('"FAILED"') });
+      // 모의 날씨 서버(C 모드)가 붙어 있으면 현재 날씨가 채워진다. EMPTY면 원천 연결을 확인한다.
+      check(res, { 'home 현재 날씨 있음': (r) => r.status === 200 && r.json('currentWeather.status') === 'OK' });
       break;
     }
     case 'feed':
