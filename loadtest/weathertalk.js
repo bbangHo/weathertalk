@@ -2,7 +2,7 @@
 //   SCENARIO=smoke|load|stress|spike (기본 smoke)
 //   BASE_URL      대상 서버 (기본 http://localhost:18080)
 //   PEAK_RPS      load의 목표 RPS (기본 20). spike·stress는 이 값의 배수로 움직인다
-//   HOT_SHARE     인기 동네 5곳에 몰리는 요청 비율 (기본 0.4). 나머지는 전국 3,564개 동네에 고르게 퍼진다
+//   HOT_SHARE     씨앗 동네 5곳에 더 얹는 요청 비율 (기본 0.05). 나머지는 전국 3,564개 동네에 인구 비례로 퍼진다
 //   USERS         setup에서 만들 테스트 회원 수 (기본: smoke 3, 그 밖 50)
 //   ALLOW_REMOTE  로컬이 아닌 서버에 쏘려면 1. 미리보기·운영 서버는 사용자 확인 없이 쓰지 않는다
 import http from 'k6/http';
@@ -11,7 +11,37 @@ import { check, fail } from 'k6';
 const SCENARIO = __ENV.SCENARIO || 'smoke';
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:18080').replace(/\/$/, '');
 const PEAK = Number(__ENV.PEAK_RPS || 20);
-const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.4);
+const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.05);
+
+// 시도별 주민등록 인구(만 명, 2025년 초 근사). 수도권 합 2,605만(50.8%)·경기 1,370만은 행정안전부 2025-01 통계 보도와 맞췄고,
+// 나머지는 근삿값이다. 요청 분포의 모양을 정하는 데만 쓰므로 몇 % 차이는 결과에 영향이 없다.
+const SIDO_POPULATION = {
+  서울: 933, 부산: 326, 대구: 236, 인천: 302, 광주: 140, 대전: 144, 울산: 110, 세종: 39, 경기: 1370,
+  강원: 151, 충북: 159, 충남: 213, 전북: 173, 전남: 179, 경북: 253, 경남: 323, 제주: 67,
+  전남광주통합: 140 + 179, // 동네 기준 데이터(2026-07)는 광주·전남을 '전남광주통합특별시' 하나로 둔다
+};
+// 시도 안에서는 읍·면·동 한 곳당 평균 인구 비율로 나눈다(동·읍은 대개 1~3만 명, 면은 수천 명 — 근사).
+const UNIT_WEIGHT = { 동: 1, 읍: 1, 면: 0.2 };
+const SIDO_ALIAS = { 충청북: '충북', 충청남: '충남', 전라북: '전북', 전라남: '전남', 경상북: '경북', 경상남: '경남' };
+function sidoKey(name) {
+  const k = name.replace(/(특별자치도|특별자치시|특별시|광역시|도)$/, '');
+  return SIDO_ALIAS[k] || k;
+}
+function cumulative(weights) {
+  let s = 0;
+  return weights.map((w) => (s += w));
+}
+// 누적 가중치에서 이진 탐색으로 하나 고른다.
+function pickIndex(cum) {
+  const r = Math.random() * cum[cum.length - 1];
+  let lo = 0;
+  let hi = cum.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] > r) hi = mid; else lo = mid + 1;
+  }
+  return lo;
+}
 const USERS = Math.max(2, Number(__ENV.USERS || (SCENARIO === 'smoke' ? 3 : 50))); // 좋아요는 남의 글이어야 해서 2명 이상
 
 // 실수로 공개 데모(미리보기)나 운영에 부하를 주지 않게 막는다.
@@ -19,7 +49,7 @@ if (!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:\d+)?$/.test(
   throw new Error(`로컬이 아닌 대상(${BASE_URL})입니다. 사용자 확인을 받았으면 ALLOW_REMOTE=1 을 붙이세요.`);
 }
 
-// 인기 동네(씨앗 동네) 좌표. 요청의 HOT_SHARE가 여기에 몰리고, 나머지는 전국 동네에 퍼진다(MAU 3만이 전국에 흩어진 모습).
+// 씨앗 동네 좌표. 인구 비례 몫에 더해 요청의 HOT_SHARE가 여기에 몰린다(초기 커뮤니티를 채운 동네). 상세·좋아요 글도 여기에 둔다.
 const SPOTS = [
   { lat: 37.5006, lon: 127.0364 }, // 서울 강남구 역삼
   { lat: 37.5045, lon: 127.0050 }, // 서울 서초구 반포
@@ -112,16 +142,30 @@ export function setup() {
   // 전국 동네 목록: 시도 → 시군구 → 동네 단계 조회(약 270건). 대표점 좌표로 쓰기 위치를 만든다.
   const all = [];
   for (const sido of http.get(`${BASE_URL}/api/v1/neighborhoods/regions`).json('names')) {
+    const sidoStart = all.length;
     const sigungus = http.get(`${BASE_URL}/api/v1/neighborhoods/regions?sido=${encodeURIComponent(sido)}`).json('names');
     const pages = http.batch(sigungus.map((sg) => ['GET',
       `${BASE_URL}/api/v1/neighborhoods/regions?sido=${encodeURIComponent(sido)}&sigungu=${encodeURIComponent(sg)}`]));
     for (const page of pages) {
       for (const n of page.json('neighborhoods')) {
-        if (n.representativePoint) all.push({ id: n.id, lat: n.representativePoint.latitude, lon: n.representativePoint.longitude });
+        if (n.representativePoint) {
+          all.push({ id: n.id, lat: n.representativePoint.latitude, lon: n.representativePoint.longitude,
+            sido: sidoKey(sido), unit: UNIT_WEIGHT[n.eupmyeondongName.slice(-1)] || 1 });
+        }
       }
     }
+    // 시도 인구를 그 시도 동네들에 읍·면·동 가중치대로 나눈다.
+    const people = SIDO_POPULATION[sidoKey(sido)];
+    if (!people) fail(`인구 표에 없는 시도 이름: ${sido} (SIDO_POPULATION에 추가하세요)`);
+    const units = all.slice(sidoStart).reduce((s, n) => s + n.unit, 0);
+    for (const n of all.slice(sidoStart)) n.weight = (people * n.unit) / units;
   }
   if (all.length < 1000) fail(`전국 동네 목록이 너무 적습니다(${all.length}).`);
+  const cum = cumulative(all.map((n) => n.weight));
+  // 자체 확인: 수도권(서울·인천·경기) 몫이 인구 비율(약 51%)과 맞는지.
+  const share = all.filter((n) => ['서울', '인천', '경기'].includes(n.sido)).reduce((s, n) => s + n.weight, 0) / cum[cum.length - 1];
+  if (share < 0.45 || share > 0.56) fail(`수도권 요청 몫이 ${(share * 100).toFixed(1)}%로 인구 비율(약 51%)과 다릅니다.`);
+  console.log(`전국 동네 ${all.length}곳, 수도권 몫 ${(share * 100).toFixed(1)}%`);
 
   // 상세·좋아요 대상 글을 동네마다 하나씩 만들어 둔다. 내 글에는 좋아요할 수 없어(SELF_LIKE_NOT_ALLOWED) 작성자를 기억한다.
   const posts = neighborhoods.map((nb, i) => {
@@ -131,7 +175,7 @@ export function setup() {
     if (r.status !== 200) fail(`준비 글 작성 실패(${r.status}): ${r.body}`);
     return { id: r.json('postId'), author: i % tokens.length };
   });
-  return { tokens, neighborhoods, all, posts };
+  return { tokens, neighborhoods, all: all.map(({ id, lat, lon }) => ({ id, lat, lon })), cum, posts };
 }
 
 // 요청 하나 = 반복 하나. 가중치 합 100 = 읽기 88 : 쓰기 12 (README '읽기·쓰기 비율').
@@ -149,7 +193,7 @@ function chooseAction() {
 const ok = (res, name) => check(res, { [`${name} 2xx`]: (r) => r.status >= 200 && r.status < 300 });
 
 export default function (data) {
-  const nb = Math.random() < HOT_SHARE ? pick(data.neighborhoods) : pick(data.all);
+  const nb = Math.random() < HOT_SHARE ? pick(data.neighborhoods) : data.all[pickIndex(data.cum)];
   const token = pick(data.tokens);
   const member = Math.random() < 0.6; // 읽기 요청의 60%는 회원, 나머지는 비회원
   const read = (name) => ({ tags: { name, kind: 'read' } });
