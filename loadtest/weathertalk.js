@@ -1,7 +1,7 @@
 // 날씨톡톡 백엔드 부하테스트 (k6). 실행법·시나리오·합격 기준은 README.md.
 //   SCENARIO=smoke|load|stress|spike (기본 smoke)
 //   BASE_URL      대상 서버 (기본 http://localhost:18080)
-//   PEAK_RPS      load의 목표 RPS (기본 20). spike·stress는 이 값의 배수로 움직인다
+//   PEAK_TPS      load의 목표 TPS (기본 20). spike·stress는 이 값의 배수로 움직인다
 //   HOT_SHARE     씨앗 동네 5곳에 더 얹는 요청 비율 (기본 0.05). 나머지는 전국 3,564개 동네에 인구 비례로 퍼진다
 //   USERS         setup에서 만들 테스트 회원 수 (기본: smoke 3, 그 밖 50)
 //   ALLOW_REMOTE  로컬이 아닌 서버에 쏘려면 1. 미리보기·운영 서버는 사용자 확인 없이 쓰지 않는다
@@ -10,7 +10,7 @@ import { check, fail } from 'k6';
 
 const SCENARIO = __ENV.SCENARIO || 'smoke';
 const BASE_URL = (__ENV.BASE_URL || 'http://localhost:18080').replace(/\/$/, '');
-const PEAK = Number(__ENV.PEAK_RPS || 20);
+const PEAK = Number(__ENV.PEAK_TPS || 20); // TPS = 초당 API 호출 처리 건수(반복 1번 = 요청 1건이라 RPS와 같다)
 const HOT_SHARE = Number(__ENV.HOT_SHARE || 0.05);
 
 // 시도별 주민등록 인구(만 명, 2025년 초 근사). 수도권 합 2,605만(50.8%)·경기 1,370만은 행정안전부 2025-01 통계 보도와 맞췄고,
