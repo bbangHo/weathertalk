@@ -14,24 +14,18 @@
 | 저장소 클론 | `C:\Users\user\weathertalk` (브랜치 `claude/load-test-bf35bf`, 2026-11-17 클론). 미니 PC에서 `gradlew.bat bootJar` 빌드 확인(1분 10초) |
 | 미리보기(데모) | `C:\Users\user\weathertalk-preview` (app.jar + compose, 프로젝트 `weathertalk-preview`, 포트 `127.0.0.1:8080`). 확인 당시 **꺼져 있음** |
 | 다른 부하테스트 | 다른 프로젝트가 `C:\Users\user\loadtest`·컨테이너 `lt-*`·예약 작업 `lt-docker`를 쓴다. **건드리지 않는다** |
-| 이미지 받기 | SSH에서는 `docker pull`이 실패한다(Windows 자격 증명). 필요한 이미지는 사람이 미리 받아 둔다 |
+| 다른 운영 서비스 | `lsp-prod-*` 컨테이너 5개(caddy·web·backend·postgres·mediamtx)가 **상시 운영 중**(2026-11-17 확인). CPU·메모리를 같이 쓴다 |
+| 이미지 | 필요한 이미지 5개(postgis/postgis:16-3.4, redis:7.4, eclipse-temurin:21-jre, node:22-alpine, grafana/k6:2.3.0) **모두 있음**(2026-11-17). SSH에서는 `docker pull`이 안 되니 새 이미지가 필요하면 멈추고 보고서에 적는다 |
 
-## 사람이 미리 할 일 (밤 전에, 한 번)
-
-1. **이미지 받기** — 원격 데스크톱으로 미니 PC에 들어가 PowerShell에서:
-   `docker pull node:22-alpine` · `docker pull grafana/k6:2.3.0`
-   (postgis/postgis:16-3.4 · redis:7.4 · eclipse-temurin:21-jre는 이미 있다)
-2. **원격 데스크톱은 '연결 끊기'로 닫는다**(로그아웃하지 않는다).
-
-코드와 jar는 에이전트가 2절에서 클론을 최신으로 받고 직접 빌드한다.
+사람이 미리 할 일은 없다. 코드와 jar는 에이전트가 2절에서 클론을 최신으로 받고 직접 빌드한다.
 
 ## 0. 지켜야 할 것 (어기면 즉시 멈춘다)
 
 1. **부하는 미니 PC 안의 부하테스트 백엔드(`weathertalk-loadtest`)에만** 준다. k6는 compose 안에서 `http://backend:8080`으로만 쏜다. `ALLOW_REMOTE=1`을 쓰지 않는다.
-2. **데모·다른 프로젝트를 건드리지 않는다.** `weathertalk-preview`·`lt-*` 컨테이너를 멈추거나 지우지 않는다. `C:\Users\user\loadtest`와 예약 작업 `lt-docker`를 쓰지 않는다. `down`은 **`-p weathertalk-loadtest`로만** 한다.
+2. **데모·다른 프로젝트를 건드리지 않는다.** `weathertalk-preview`·`lt-*`·**`lsp-prod-*`(운영 중)** 컨테이너를 멈추거나 지우거나 재시작하지 않는다. `C:\Users\user\loadtest`와 예약 작업 `lt-docker`를 쓰지 않는다. `down`은 **`-p weathertalk-loadtest`로만** 한다.
 3. **외부 API를 부르지 않는다.** 기상청·에어코리아는 compose 안의 `mock`으로만 간다. 실제 키를 어디에도 넣지 않는다.
 4. **다른 부하테스트와 겹치지 않는다.** 시작 전과 시나리오마다 `lt-*` 컨테이너가 떠 있으면 시작하지 않는다(이미 돌고 있으면 그 시나리오를 끝내고 멈춘다).
-5. **데모가 켜져 있고 느려지면 멈춘다** (3절).
+5. **데모나 운영 서비스가 느려지면 멈춘다** (3절). 운영 중인 `lsp-prod-*`가 같은 기계에 있으므로, 부하 중 그 컨테이너가 재시작·종료되면 즉시 k6를 멈추고 9절로 간다.
 6. 코드·설정을 고치지 않는다. 커밋·푸시하지 않는다. 결과는 미니 PC `results\`와 개발 PC `loadtest/results/`에만 쓴다.
 
 ## 1. 실행 목록
@@ -71,7 +65,11 @@ SSH "cd /d W && docker compose -f compose.minipc.yml config --quiet && echo CONF
 - 여유 메모리 확인: `SSH "powershell -NoProfile -Command [int]((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1KB)"` — **1500(MB) 미만이면 중단**.
 - 실행 이름: `RUN=$(date +%Y%m%d-%H%M)`. 결과 파일 앞에 붙인다. 개발 PC에 `mkdir -p loadtest/results`.
 
-## 3. 데모 감시
+## 3. 데모·운영 서비스 감시
+
+운영 서비스: 시작 전에 `SSH "docker ps --filter name=lsp-prod --format {{.Names}}"`로 떠 있는 개수를 적어 두고, 부하 중 1분마다 같은 명령으로 개수가 줄지 않았는지 본다. 줄었으면 0절 5번대로 멈춘다.
+
+데모:
 
 ```bash
 SSH "docker ps --filter name=weathertalk-preview-backend --format {{.Status}}"
