@@ -1,0 +1,57 @@
+# 미니 PC(Windows, Docker Desktop) 부하테스트 묶음. 미리보기(weathertalk-preview)와 같은 방식으로 app.jar를 띄우되
+# 프로젝트 이름·볼륨·포트를 따로 둔다. 실행 순서는 RUNBOOK.md.
+# 폴더 구성(C:\Users\user\weathertalk-loadtest): compose.minipc.yml, app.jar, loadtest.env, scripts\(weathertalk.js, mock-weather.js), results\
+name: weathertalk-loadtest
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: weathertalk
+      POSTGRES_USER: weathertalk
+      POSTGRES_PASSWORD: weathertalk
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: pg_isready -U weathertalk
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:7.4
+  # 기상청·에어코리아 모의 서버. LT-03은 MOCK_DELAY_MS=800 으로 다시 띄운다.
+  mock:
+    image: node:22-alpine
+    command: [node, /scripts/mock-weather.js, "18090", "${MOCK_DELAY_MS:-0}"]
+    volumes: [./scripts:/scripts:ro]
+    ports: ["127.0.0.1:18090:18090"]
+  backend:
+    image: eclipse-temurin:21-jre
+    # 기계 메모리가 8GB라 힙을 묶어 둔다(데모·DB·k6와 나눠 쓴다).
+    command: [java, -Xmx1g, -jar, /app/app.jar]
+    volumes: [./app.jar:/app/app.jar:ro]
+    env_file: loadtest.env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/weathertalk
+      SPRING_DATASOURCE_USERNAME: weathertalk
+      SPRING_DATASOURCE_PASSWORD: weathertalk
+      SPRING_DATA_REDIS_URL: redis://redis:6379
+      # loadtest.env의 localhost 주소를 compose 안의 모의 서버로 바꾼다
+      WEATHER_SOURCE_KMA_BASEURL: http://mock:18090/kma
+      WEATHER_SOURCE_AIRKOREA_BASEURL: http://mock:18090/air
+      SERVER_PORT: "8080"
+      MANAGEMENT_SERVER_PORT: "8081"
+      TZ: Asia/Seoul
+    ports: ["127.0.0.1:18080:8080", "127.0.0.1:18081:8081"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+      mock: {condition: service_started}
+  # 부하 발생기. 평소에는 뜨지 않고 `docker compose run`으로만 쓴다.
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: [tools]
+    environment:
+      BASE_URL: http://backend:8080
+    volumes: [./scripts:/scripts:ro, ./results:/results]
+volumes:
+  pgdata:

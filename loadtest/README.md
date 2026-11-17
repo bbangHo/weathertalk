@@ -10,6 +10,7 @@
 | `weathertalk.js` | k6 스크립트. 시나리오 4개(smoke·load·stress·spike), 테스트 회원 준비, 합격 기준 |
 | `loadtest.env` | 부하테스트용 백엔드 환경 변수. **외부 API를 모의 서버로 돌림**·쓰기 제한 완화·포트·지표 공개. 비밀값 없음 |
 | `mock-weather.js` | 기상청·에어코리아 모의 서버(Node, 의존성 없음). 어느 격자·시각이든 응답을 만들어 준다 |
+| `compose.minipc.yml` | 미니 PC용 묶음: postgres·redis·mock·backend(app.jar)·k6. 프로젝트 `weathertalk-loadtest` |
 | `RUNBOOK.md` | **밤샘 실행 지시서.** 에이전트가 사람 없이 LT-01~05를 순서대로 돌리고 보고서를 쓰는 절차·중단 조건 |
 | `watch.sh` | 부하 중 5초마다 DB TPS·Hikari 풀·JVM·Postgres 연결·Redis ops·컨테이너 CPU/메모리를 찍는다 |
 | `results/` | 결과 JSON·로그 (git 제외) |
@@ -107,51 +108,14 @@ C 모드가 막는 방법:
 
 ## 5. 실행 방법 (미니 PC)
 
-미리보기 서버가 공개 데모 중이라, **데모와 섞이지 않게** 띄우고 **데모가 한산한 시간**에 한다. 스크립트는 `BASE_URL`이 로컬이 아니면 `ALLOW_REMOTE=1` 없이 시작하지 않는다 — k6는 미니 PC 안에서 `localhost`로 쏜다(터널·Cloudflare를 거치지 않게).
+미니 PC는 **Windows**이고 저장소 클론 없이 미리보기처럼 `app.jar` + compose로 띄운다. 모의 서버·백엔드·DB·Redis·k6를 `compose.minipc.yml` 하나(프로젝트 `weathertalk-loadtest`)로 묶어, k6가 compose 안에서 `http://backend:8080`으로 쏜다. 터널·데모를 거치지 않는다.
 
-### 실행 전 확인할 것
+**순서·명령·중단 조건·보고서 양식은 [`RUNBOOK.md`](RUNBOOK.md)를 따른다.** 사람이 미리 할 일(이미지 받기, app.jar 만들기, 파일 올리기)도 거기 있다.
 
-- [ ] 데모가 쓰는 compose 프로젝트 이름·포트 확인. 부하테스트는 **다른 프로젝트 이름**(`COMPOSE_PROJECT_NAME=weathertalk-loadtest`)으로 띄워 DB·Redis 볼륨을 나눈다. `backend/compose.yaml`의 SeaweedFS는 호스트 포트 8333이 고정이라 데모와 겹치면 포트를 바꾸거나 빼야 한다(사진 업로드는 시나리오에 없다).
-- [ ] 포트 18080(API)·18081(지표)·18090(모의 서버)이 비어 있는지.
-- [ ] 미니 PC의 CPU·메모리 여유. 데모·부하 서버·k6가 같은 기계를 나눠 쓰므로 결과는 그 조건의 값이다.
-- [ ] 이 브랜치(`loadtest/`)가 미니 PC에 있는지.
-
-### 순서
-
-```bash
-# 1) 모의 날씨 서버 (터미널 1)
-node loadtest/mock-weather.js
-```
-
-```bash
-# 2) 백엔드 (터미널 2): compose.yaml(PostGIS·Redis)을 자동으로 띄우고 18080 포트로 실행
-cd backend
-export COMPOSE_PROJECT_NAME=weathertalk-loadtest
-set -a; . ../loadtest/loadtest.env; set +a
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
-
-```bash
-# 3) 자원 기록 (터미널 3)
-mkdir -p loadtest/results
-bash loadtest/watch.sh http://localhost:18081 weathertalk-loadtest > loadtest/results/watch-smoke.log
-```
-
-```bash
-# 4) k6 (저장소 루트, 터미널 4) — smoke 먼저, 통과하면 load·spike·stress
-docker run --rm --network host -v "$(pwd)/loadtest:/scripts" -e SCENARIO=smoke grafana/k6:2.3.0 run --summary-export /scripts/results/smoke.json /scripts/weathertalk.js
-```
-
-```bash
-# 5) 모의 서버가 받은 호출 수
-curl -s localhost:18090/counts
-```
-
-`SCENARIO`를 `load`·`spike`·`stress` 순서로 바꾼다. 합격 기준을 어기면 k6가 종료 코드 99로 끝난다.
-
-뒷정리: 테스트 회원 `loadtest-*`, "부하테스트 글", 체감 기록이 부하테스트 DB에 쌓인다. 끝나면 `docker compose -p weathertalk-loadtest -f backend/compose.yaml down -v`로 부하테스트 프로젝트만 지운다(**데모 프로젝트 이름으로 실행하지 않는다**).
-
-확인 필요: Spring Boot의 Docker Compose 지원이 `COMPOSE_PROJECT_NAME`을 따르는지 처음 실행 때 `docker ps`로 컨테이너 이름을 본다. 안 따르면 compose를 먼저 직접 띄우고 `spring.docker.compose.lifecycle-management=none` + DB·Redis 주소를 환경 변수로 넣는다.
+주의:
+- 미니 PC는 다른 프로젝트의 부하테스트(`lt-*` 컨테이너)와 함께 쓴다. **한 번에 하나만** 돌린다.
+- SSH에서는 `docker pull`이 안 된다. 새 이미지는 원격 데스크톱에서 받는다.
+- 뒷정리는 `docker compose -f compose.minipc.yml down -v`(프로젝트 `weathertalk-loadtest`만 지운다).
 
 ## 6. 측정 지표와 합격 기준
 

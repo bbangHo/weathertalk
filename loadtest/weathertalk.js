@@ -44,8 +44,8 @@ function pickIndex(cum) {
 }
 const USERS = Math.max(2, Number(__ENV.USERS || (SCENARIO === 'smoke' ? 3 : 50))); // 좋아요는 남의 글이어야 해서 2명 이상
 
-// 실수로 공개 데모(미리보기)나 운영에 부하를 주지 않게 막는다.
-if (!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:\d+)?$/.test(BASE_URL) && __ENV.ALLOW_REMOTE !== '1') {
+// 실수로 공개 데모(미리보기)나 운영에 부하를 주지 않게 막는다. backend = compose.minipc.yml 안의 부하테스트 백엔드.
+if (!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal|backend)(:\d+)?$/.test(BASE_URL) && __ENV.ALLOW_REMOTE !== '1') {
   throw new Error(`로컬이 아닌 대상(${BASE_URL})입니다. 사용자 확인을 받았으면 ALLOW_REMOTE=1 을 붙이세요.`);
 }
 
