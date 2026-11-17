@@ -10,7 +10,8 @@
 | `weathertalk.js` | k6 스크립트. 시나리오 4개(smoke·load·stress·spike), 테스트 회원 준비, 합격 기준 |
 | `loadtest.env` | 부하테스트용 백엔드 환경 변수. **외부 API를 모의 서버로 돌림**·쓰기 제한 완화·포트·지표 공개. 비밀값 없음 |
 | `mock-weather.js` | 기상청·에어코리아 모의 서버(Node, 의존성 없음). 어느 격자·시각이든 응답을 만들어 준다 |
-| `watch.sh` | 부하 중 5초마다 Hikari 풀·JVM·Postgres 연결·Redis ops·컨테이너 CPU/메모리를 찍는다 |
+| `RUNBOOK.md` | **밤샘 실행 지시서.** 에이전트가 사람 없이 LT-01~05를 순서대로 돌리고 보고서를 쓰는 절차·중단 조건 |
+| `watch.sh` | 부하 중 5초마다 DB TPS·Hikari 풀·JVM·Postgres 연결·Redis ops·컨테이너 CPU/메모리를 찍는다 |
 | `results/` | 결과 JSON·로그 (git 제외) |
 
 k6는 설치하지 않고 도커 이미지 `grafana/k6:2.3.0`으로 돌린다.
