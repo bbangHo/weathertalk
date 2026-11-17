@@ -11,6 +11,7 @@
 | OS·자원 | **Windows**, 논리 CPU 4개, 메모리 7.9GB(도커만 켠 상태 여유 약 2.6GB) |
 | 접속 | `ssh -p 22222 user@bbangho-server.duckdns.org` (Windows OpenSSH, 자주 끊김 → 명령마다 3번까지 재시도) |
 | 셸 | 원격 명령은 **cmd**. bash가 필요하면 `"C:\Program Files\Git\bin\bash.exe"` |
+| 저장소 클론 | `C:\Users\user\weathertalk` (브랜치 `claude/load-test-bf35bf`, 2026-11-17 클론). 미니 PC에서 `gradlew.bat bootJar` 빌드 확인(1분 10초) |
 | 미리보기(데모) | `C:\Users\user\weathertalk-preview` (app.jar + compose, 프로젝트 `weathertalk-preview`, 포트 `127.0.0.1:8080`). 확인 당시 **꺼져 있음** |
 | 다른 부하테스트 | 다른 프로젝트가 `C:\Users\user\loadtest`·컨테이너 `lt-*`·예약 작업 `lt-docker`를 쓴다. **건드리지 않는다** |
 | 이미지 받기 | SSH에서는 `docker pull`이 실패한다(Windows 자격 증명). 필요한 이미지는 사람이 미리 받아 둔다 |
@@ -20,18 +21,9 @@
 1. **이미지 받기** — 원격 데스크톱으로 미니 PC에 들어가 PowerShell에서:
    `docker pull node:22-alpine` · `docker pull grafana/k6:2.3.0`
    (postgis/postgis:16-3.4 · redis:7.4 · eclipse-temurin:21-jre는 이미 있다)
-2. **app.jar 만들기** — 개발 PC의 이 브랜치에서 `cd backend && ./gradlew bootJar -x test` → `backend/build/libs/*-SNAPSHOT.jar`(plain이 아닌 것).
-3. **파일 올리기** — 미니 PC에 `C:\Users\user\weathertalk-loadtest\`를 만들고 아래처럼 둔다(한글 경로는 scp가 못 읽으니 영문 임시 폴더를 거친다):
+2. **원격 데스크톱은 '연결 끊기'로 닫는다**(로그아웃하지 않는다).
 
-   | 미니 PC 경로 | 원본 |
-   |---|---|
-   | `compose.minipc.yml` | `loadtest/compose.minipc.yml` |
-   | `loadtest.env` | `loadtest/loadtest.env` |
-   | `app.jar` | 2번의 jar |
-   | `scripts\weathertalk.js`, `scripts\mock-weather.js`, `scripts\watch.sh` | `loadtest/` 같은 이름 |
-   | `results\` | 빈 폴더 |
-
-4. **원격 데스크톱은 '연결 끊기'로 닫는다**(로그아웃하지 않는다).
+코드와 jar는 에이전트가 2절에서 클론을 최신으로 받고 직접 빌드한다.
 
 ## 0. 지켜야 할 것 (어기면 즉시 멈춘다)
 
@@ -57,10 +49,19 @@
 
 ## 2. 사전 점검
 
-아래에서 `SSH`는 `ssh -p 22222 user@bbangho-server.duckdns.org`, `W`는 `C:\Users\user\weathertalk-loadtest`.
+아래에서 `SSH`는 `ssh -p 22222 user@bbangho-server.duckdns.org`, `W`는 `C:\Users\user\weathertalk\loadtest`.
+
+먼저 클론을 최신으로 받고 백엔드를 빌드한다(2분 안팎):
 
 ```bash
-SSH "cd /d W && dir /b && dir /b scripts"
+SSH "cd /d C:\Users\user\weathertalk && git pull --ff-only && git log --oneline -1"
+SSH "cd /d C:\Users\user\weathertalk\backend && gradlew.bat bootJar -x test --console=plain"      # BUILD SUCCESSFUL 이어야 한다
+SSH "cd /d W && if not exist results mkdir results"
+```
+
+`git pull`이 충돌·실패하면(누가 클론에서 파일을 고친 것) 고치지 말고 보고서에 적고 끝낸다.
+
+```bash
 SSH "docker images --format {{.Repository}}:{{.Tag}}"     # node:22-alpine, grafana/k6:2.3.0 이 있어야 한다
 SSH "docker ps --format {{.Names}}"                        # lt-* 가 있으면 0절 4번 → 중단
 SSH "cd /d W && docker compose -f compose.minipc.yml config --quiet && echo CONFIG_OK"
@@ -104,7 +105,7 @@ SSH "curl -s \"http://127.0.0.1:18090/counts\""      # 모의 서버 응답 확�
 **자원 기록** (개발 PC에서 백그라운드로, 회차가 끝나면 끈다. 끊기면 다시 붙인다):
 
 ```bash
-SSH "\"C:\Program Files\Git\bin\bash.exe\" W/scripts/watch.sh http://127.0.0.1:18081 weathertalk-loadtest" > loadtest/results/$RUN-<ID>-<회차>-watch.log
+SSH "\"C:\Program Files\Git\bin\bash.exe\" C:/Users/user/weathertalk/loadtest/watch.sh http://127.0.0.1:18081 weathertalk-loadtest" > loadtest/results/$RUN-<ID>-<회차>-watch.log
 ```
 
 **k6** — SSH가 끊겨도 계속 돌도록 분리 실행하고, 끝날 때까지 기다린다:
@@ -116,7 +117,7 @@ SSH "docker inspect -f {{.State.ExitCode}} weathertalk-loadtest-k6-run"         
 SSH "docker logs weathertalk-loadtest-k6-run" > loadtest/results/$RUN-<ID>-<회차>.txt 2>&1
 SSH "curl -s http://127.0.0.1:18090/counts" > loadtest/results/$RUN-<ID>-<회차>-mock.json
 SSH "docker rm weathertalk-loadtest-k6-run"
-scp -P 22222 "user@bbangho-server.duckdns.org:C:/Users/user/weathertalk-loadtest/results/$RUN-<ID>-<회차>.json" loadtest/results/
+scp -P 22222 "user@bbangho-server.duckdns.org:C:/Users/user/weathertalk/loadtest/results/$RUN-<ID>-<회차>.json" loadtest/results/
 ```
 
 - 종료 코드 **99**는 합격 기준 미달이다. 실패가 아니라 결과다 — 기록하고 다음으로 간다(LT-01만 예외: 중단).

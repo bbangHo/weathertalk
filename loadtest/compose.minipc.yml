@@ -1,6 +1,5 @@
-# 미니 PC(Windows, Docker Desktop) 부하테스트 묶음. 미리보기(weathertalk-preview)와 같은 방식으로 app.jar를 띄우되
-# 프로젝트 이름·볼륨·포트를 따로 둔다. 실행 순서는 RUNBOOK.md.
-# 폴더 구성(C:\Users\user\weathertalk-loadtest): compose.minipc.yml, app.jar, loadtest.env, scripts\(weathertalk.js, mock-weather.js), results\
+# 미니 PC(Windows, Docker Desktop) 부하테스트 묶음. 저장소 클론(C:\Users\user\weathertalk)의 loadtest 폴더에서 실행한다.
+# 백엔드는 클론에서 빌드한 jar(../backend/build/libs)를 띄운다. 미리보기와 프로젝트 이름·볼륨·포트를 따로 둔다. 실행 순서는 RUNBOOK.md.
 name: weathertalk-loadtest
 services:
   postgres:
@@ -20,13 +19,13 @@ services:
   mock:
     image: node:22-alpine
     command: [node, /scripts/mock-weather.js, "18090", "${MOCK_DELAY_MS:-0}"]
-    volumes: [./scripts:/scripts:ro]
+    volumes: [./:/scripts:ro]
     ports: ["127.0.0.1:18090:18090"]
   backend:
     image: eclipse-temurin:21-jre
     # 기계 메모리가 8GB라 힙을 묶어 둔다(데모·DB·k6와 나눠 쓴다).
     command: [java, -Xmx1g, -jar, /app/app.jar]
-    volumes: [./app.jar:/app/app.jar:ro]
+    volumes: [../backend/build/libs/weathertalk-backend-0.0.1-SNAPSHOT.jar:/app/app.jar:ro]
     env_file: loadtest.env
     environment:
       SPRING_PROFILES_ACTIVE: local
@@ -52,6 +51,6 @@ services:
     profiles: [tools]
     environment:
       BASE_URL: http://backend:8080
-    volumes: [./scripts:/scripts:ro, ./results:/results]
+    volumes: [./:/scripts:ro, ./results:/results]
 volumes:
   pgdata:

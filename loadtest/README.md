@@ -108,9 +108,9 @@ C 모드가 막는 방법:
 
 ## 5. 실행 방법 (미니 PC)
 
-미니 PC는 **Windows**이고 저장소 클론 없이 미리보기처럼 `app.jar` + compose로 띄운다. 모의 서버·백엔드·DB·Redis·k6를 `compose.minipc.yml` 하나(프로젝트 `weathertalk-loadtest`)로 묶어, k6가 compose 안에서 `http://backend:8080`으로 쏜다. 터널·데모를 거치지 않는다.
+미니 PC는 **Windows**다. 저장소 클론(`C:\Users\user\weathertalk`)에서 jar를 빌드하고 `loadtest` 폴더에서 compose로 띄운다. 모의 서버·백엔드·DB·Redis·k6를 `compose.minipc.yml` 하나(프로젝트 `weathertalk-loadtest`)로 묶어, k6가 compose 안에서 `http://backend:8080`으로 쏜다. 터널·데모를 거치지 않는다.
 
-**순서·명령·중단 조건·보고서 양식은 [`RUNBOOK.md`](RUNBOOK.md)를 따른다.** 사람이 미리 할 일(이미지 받기, app.jar 만들기, 파일 올리기)도 거기 있다.
+**순서·명령·중단 조건·보고서 양식은 [`RUNBOOK.md`](RUNBOOK.md)를 따른다.** 사람이 미리 할 일(원격 데스크톱에서 이미지 받기)도 거기 있다.
 
 주의:
 - 미니 PC는 다른 프로젝트의 부하테스트(`lt-*` 컨테이너)와 함께 쓴다. **한 번에 하나만** 돌린다.
