@@ -2,7 +2,7 @@
   "expo": {
     "name": "날씨톡톡",
     "slug": "weathertalk",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.weathertalk.app"
     },
     "android": {
-      "package": "com.weathertalk.app",
+      "package": "com.weather2",
+      "versionCode": 17,
       "adaptiveIcon": {
         "backgroundColor": "#2F6FED",
         "foregroundImage": "./assets/android-icon-foreground.png",
