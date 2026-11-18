@@ -48,9 +48,9 @@ export function WelcomeScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.body}>
         <AppText variant="title">날씨톡톡</AppText>
-        <AppText variant="heading">우리 동네 사람들은 지금 날씨를 어떻게 느낄까요?</AppText>
+        <AppText variant="heading">나만의 체감 날씨</AppText>
         <AppText tone="secondary">
-          동네 날씨와 함께, 나처럼 더위·추위를 타는 이웃이 지금 어떻게 느끼는지 보여드려요.
+          오늘 날씨가 나에게는 어떻게 느껴질지, 나처럼 더위·추위를 타는 사람들의 기록으로 보여드려요.
         </AppText>
         <View style={styles.notice}>
           <AppText variant="button">위치는 동네 판정에만 쓰고 저장하지 않아요</AppText>
