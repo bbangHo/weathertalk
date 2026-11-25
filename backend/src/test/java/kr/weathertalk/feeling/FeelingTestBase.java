@@ -18,7 +18,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import kr.weathertalk.AuthTestClient;
 import kr.weathertalk.member.TemperatureSensitivity;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.ForecastGrid;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.neighborhood.NeighborhoodTestData;
@@ -91,14 +90,14 @@ public abstract class FeelingTestBase extends WeatherTestBase {
 		return UUID.randomUUID().toString();
 	}
 
-	protected static String locationJson(DeviceLocation location) {
-		return "\"latitude\":" + location.latitude() + ",\"longitude\":" + location.longitude() + ",\"accuracyMeters\":"
-				+ location.accuracyMeters();
+	/** 앱이 기기 안에서 판정한 현재 동네 ID (좌표 대신, ADR 0009). */
+	protected static String locationJson(NeighborhoodId location) {
+		return "\"neighborhoodId\":\"" + location.value() + "\"";
 	}
 
 	/** 직접 기록 요청. humidity·wind는 null이면 보내지 않는다. */
 	protected ResultActions record(AuthTestClient.Session session, String key, String temperature, String humidity,
-			String wind, DeviceLocation location) throws Exception {
+			String wind, NeighborhoodId location) throws Exception {
 		StringBuilder body = new StringBuilder("{");
 		if (temperature != null) {
 			body.append("\"temperature\":\"").append(temperature).append("\",");
@@ -123,7 +122,7 @@ public abstract class FeelingTestBase extends WeatherTestBase {
 	/** 체감 피드백 요청. shown*은 앱이 보여준 민감도별 체감 값. */
 	protected ResultActions feedback(AuthTestClient.Session session, String answer, String shownTag,
 			TemperatureSensitivity shownSensitivity, NeighborhoodId shownNeighborhood, Instant basisTime,
-			Instant derivedAt, DeviceLocation location) throws Exception {
+			Instant derivedAt, NeighborhoodId location) throws Exception {
 		String body = "{\"answer\":\"" + answer + "\",\"shown\":{\"temperatureTag\":\"" + shownTag
 				+ "\",\"source\":\"REFERENCE_TABLE\",\"temperatureSensitivity\":\"" + shownSensitivity.name()
 				+ "\",\"neighborhoodId\":\"" + shownNeighborhood.value() + "\",\"basisTime\":\"" + basisTime

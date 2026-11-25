@@ -24,11 +24,11 @@ import kr.weathertalk.community.internal.PostRepository.PostRow;
 import kr.weathertalk.community.internal.config.CommunityProperties;
 import kr.weathertalk.feeling.FeelingApi;
 import kr.weathertalk.feeling.FeelingRecordOwnership;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.shared.Ids.FeelingRecordId;
 import kr.weathertalk.shared.Ids.MemberId;
+import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.Ids.PostId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
@@ -36,14 +36,14 @@ import kr.weathertalk.shared.error.ErrorCode;
 /**
  * 게시글 작성·수정·삭제 (FR-COM-02·03·04). 회원·약관 확인은 컨트롤러 파라미터에서 끝난다.
  * <p>
- * 작성: 본문·이미지 수 검증 → 기기 좌표로 neighborhood 현재 동네 확정(게시글의 동네, 앱이 보낸 동네 ID는 받지 않음 — BR-COM-01)
+ * 작성: 본문·이미지 수 검증 → 앱이 판정한 동네 ID로 neighborhood 현재 동네 확정(게시글의 동네 — BR-COM-01)
  * → 체감 기록 첨부 조건(BR-COM-06) → 한 트랜잭션에서 게시글 생성 + 이미지 첨부 + 게시글작성됨 발행(부분 성공 없음).
  */
 @Service
 public class PostService {
 
 	/** @param feelingRecordId 첨부할 체감 기록(선택) */
-	public record CreateCommand(String body, List<UUID> imageIds, UUID feelingRecordId, DeviceLocation location) {
+	public record CreateCommand(String body, List<UUID> imageIds, UUID feelingRecordId, NeighborhoodId neighborhoodId) {
 
 		@Override
 		public String toString() {
@@ -79,7 +79,7 @@ public class PostService {
 	public PostId create(MemberId memberId, CreateCommand command) {
 		String body = postBody(command.body());
 		List<UUID> imageIds = imageIds(command.imageIds());
-		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.location())
+		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.neighborhoodId())
 			.orElseThrow();
 		Instant now = now();
 		if (command.feelingRecordId() != null) {

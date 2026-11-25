@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import kr.weathertalk.member.Requester;
 import kr.weathertalk.member.RequiresAgreedTerms;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
@@ -28,7 +27,7 @@ import kr.weathertalk.weather.internal.fieldreport.FieldReportService;
 /**
  * 현장 제보·예보 vs 주민 차이 웹 API (FR-WEA-04·05·12·14).
  * <ul>
- * <li>제보: 회원 전용 + 약관 재동의 가드 + 요청 식별자 멱등(contracts §4). 좌표는 본문으로만 받고 저장하지 않는다(ADR 0009).</li>
+ * <li>제보: 회원 전용 + 약관 재동의 가드 + 요청 식별자 멱등(contracts §4). 좌표는 받지 않고 앱이 기기 안에서 판정한 동네 ID를 받는다(ADR 0009).</li>
  * <li>취소: 회원 전용. 본인 제보 취소는 약관 재동의 전에도 허용한다(contracts §4).</li>
  * <li>현황·차이: 비회원에게도 공개한다(BR-WEA-22). 회원이면 현황에 본인 제보를 함께 준다.</li>
  * </ul>
@@ -37,7 +36,7 @@ import kr.weathertalk.weather.internal.fieldreport.FieldReportService;
 @RestController
 class FieldReportController {
 
-	record SubmitRequest(@NotNull String kind, Double latitude, Double longitude, Double accuracyMeters) {
+	record SubmitRequest(@NotNull String kind, String neighborhoodId) {
 
 		@Override
 		public String toString() {
@@ -63,7 +62,7 @@ class FieldReportController {
 		FieldReportKind kind = parse(request.kind());
 		return idempotent.execute(member.memberId(), "weather.field-report", key, FieldReportResult.class,
 				() -> fieldReports.submit(member.memberId(), kind,
-						new DeviceLocation(request.latitude(), request.longitude(), request.accuracyMeters())));
+						new NeighborhoodId(request.neighborhoodId())));
 	}
 
 	/** FR-WEA-14 현장 제보 취소. */

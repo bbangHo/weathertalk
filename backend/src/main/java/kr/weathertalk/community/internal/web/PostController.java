@@ -22,7 +22,6 @@ import kr.weathertalk.community.internal.PostService;
 import kr.weathertalk.community.internal.config.CommunityProperties;
 import kr.weathertalk.member.Requester;
 import kr.weathertalk.member.RequiresAgreedTerms;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
@@ -32,13 +31,13 @@ import kr.weathertalk.shared.idempotency.IdempotentExecutor;
 /**
  * 게시글 웹 API (05 §4). 쓰기는 회원 전용 + 약관 재동의 가드, 작성은 요청 식별자 멱등(BR-COM-12, community.idempotency-window).
  * 본인 글 삭제는 약관 재동의 전에도 허용한다(contracts.md §4). 조회는 비회원도 할 수 있고 동네 제한이 없다(BR-COM-15).
- * 좌표는 본문으로만 받고 저장하지 않는다(ADR 0009). 게시글의 동네를 정하는 입력(동네 ID)은 받지 않는다(BR-COM-01).
+ * 좌표는 받지 않고, 게시글의 동네는 앱이 기기 안에서 판정한 현재 동네 ID로 정한다(BR-COM-01, ADR 0009).
  */
 @RestController
 class PostController {
 
-	record CreateRequest(String body, List<UUID> imageIds, UUID feelingRecordId, Double latitude, Double longitude,
-			Double accuracyMeters) {
+	record CreateRequest(String body, List<UUID> imageIds, UUID feelingRecordId,
+			String neighborhoodId) {
 
 		@Override
 		public String toString() {
@@ -80,7 +79,7 @@ class PostController {
 				() -> new PostCreatedResponse(postService
 					.create(member.memberId(), new PostService.CreateCommand(request.body(), request.imageIds(),
 							request.feelingRecordId(),
-							new DeviceLocation(request.latitude(), request.longitude(), request.accuracyMeters())))
+							new NeighborhoodId(request.neighborhoodId())))
 					.value()));
 	}
 

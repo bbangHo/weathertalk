@@ -5,16 +5,13 @@ package kr.weathertalk.neighborhood;
  */
 public enum LocationRejection {
 
-	/** 좌표 또는 정확도가 없다. */
-	LOCATION_MISSING,
+	/** 동네 ID가 없다. */
+	NEIGHBORHOOD_MISSING,
 
-	/** 위경도 범위를 벗어났거나 정확도가 음수 등 형식이 틀렸다. */
-	LOCATION_INVALID,
+	/** 동네 기준 데이터에 없는 동네 ID다. */
+	NEIGHBORHOOD_UNKNOWN,
 
-	/** 정확도가 neighborhood.max-accuracy-for-write보다 나쁘다. */
-	ACCURACY_TOO_LOW,
-
-	/** 어느 유효 동네에도 속하지 않는다(경계 밖이고 가장 가까운 대표점도 최대 거리 밖 — 바다 위·국외). */
-	OUTSIDE_SERVICE_AREA
+	/** 폐지된(유효하지 않은) 동네다. */
+	NEIGHBORHOOD_RETIRED
 
 }

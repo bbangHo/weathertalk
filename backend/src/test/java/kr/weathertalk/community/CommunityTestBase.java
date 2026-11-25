@@ -23,7 +23,6 @@ import com.jayway.jsonpath.JsonPath;
 import kr.weathertalk.AuthTestClient;
 import kr.weathertalk.feeling.FeelingTestBase;
 import kr.weathertalk.member.TemperatureSensitivity;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.NeighborhoodTestData;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.idempotency.IdempotencyKey;
@@ -53,7 +52,7 @@ public abstract class CommunityTestBase extends FeelingTestBase {
 	}
 
 	protected ResultActions createPost(AuthTestClient.Session session, String key, String body, List<UUID> imageIds,
-			UUID feelingRecordId, DeviceLocation location) throws Exception {
+			UUID feelingRecordId, NeighborhoodId location) throws Exception {
 		String content = "{\"body\":" + json(body) + ",\"imageIds\":" + ids(imageIds) + ",\"feelingRecordId\":"
 				+ (feelingRecordId == null ? "null" : "\"" + feelingRecordId + "\"") + "," + locationJson(location) + "}";
 		return mvc.perform(auth(post("/api/v1/community/posts"), session).header(IdempotencyKey.HEADER, key)

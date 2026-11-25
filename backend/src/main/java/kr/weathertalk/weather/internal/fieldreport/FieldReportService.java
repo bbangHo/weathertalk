@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.shared.Ids.MemberId;
@@ -20,7 +19,7 @@ import kr.weathertalk.weather.internal.fieldreport.FieldReportRepository.StoredF
 
 /**
  * 현장 제보 하기·취소·현황 (FR-WEA-04·05·14, BR-WEA-15). 회원·약관 확인과 요청 식별자 멱등은 컨트롤러에서 끝난다.
- * 쓰기 직전 neighborhood 현재 동네 확정으로 동네를 정한다 — 앱이 보낸 동네 ID는 받지 않고 좌표는 저장하지 않는다(ADR 0009).
+ * 쓰기 직전 neighborhood 현재 동네 확정으로 동네를 정한다 — 앱이 기기 안에서 판정한 동네 ID를 받는다(좌표는 받지 않음, ADR 0009).
  */
 @Service
 public class FieldReportService {
@@ -38,11 +37,11 @@ public class FieldReportService {
 		this.properties = properties;
 	}
 
-	public FieldReportResult submit(MemberId memberId, FieldReportKind kind, DeviceLocation location) {
+	public FieldReportResult submit(MemberId memberId, FieldReportKind kind, NeighborhoodId neighborhoodId) {
 		if (kind == null) {
 			throw new DomainException(ErrorCode.INVALID_REQUEST, "현장 제보 종류를 골라 주세요.");
 		}
-		Neighborhood neighborhood = neighborhoods.confirmCurrentNeighborhood(memberId, location).orElseThrow();
+		Neighborhood neighborhood = neighborhoods.confirmCurrentNeighborhood(memberId, neighborhoodId).orElseThrow();
 		StoredFieldReport saved = writer.write(memberId, neighborhood.id(), kind);
 		return result(saved, memberId);
 	}

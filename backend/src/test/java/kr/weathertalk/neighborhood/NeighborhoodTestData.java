@@ -15,7 +15,7 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
 
 /**
  * 테스트용 SAMPLE 동네 데이터 (src/test/resources/neighborhood, 가상 대표점 7개 — 실제 행정동 아님, 경계 없음).
- * 기상청 자료처럼 대표점만 있으므로 판정은 가장 가까운 대표점이다(ADR 0016).
+ * 좌표 → 동네 판정은 앱이 기기 안에서 하므로(ADR 0009) 서버 테스트는 동네 ID로 현재 동네를 확정한다.
  *
  * <pre>
  *  위도 37.515   3(다른)    4(다른)    6(다른)
@@ -38,23 +38,16 @@ public final class NeighborhoodTestData {
 	public static final NeighborhoodId N6 = new NeighborhoodId("9900000006");
 	public static final NeighborhoodId N7 = new NeighborhoodId("9900000007");
 
-	/** 동네 1 대표점 바로 옆 */
-	public static final DeviceLocation INSIDE_N1 = location(37.506, 127.004, 20.0);
+	/** 앱이 동네 1로 판정한 위치(쓰기 요청의 동네 ID) */
+	public static final NeighborhoodId INSIDE_N1 = N1;
 
-	/** 동네 1·2 대표점에서 같은 거리 */
-	public static final DeviceLocation EQUIDISTANT_N1_N2 = location(37.505, 127.010, 20.0);
+	/** 앱이 동네 2로 판정한 위치 */
+	public static final NeighborhoodId NEAR_N2 = N2;
 
-	/** 동네 2 대표점 근처 */
-	public static final DeviceLocation NEAR_N2 = location(37.504, 127.016, 20.0);
-
-	/** 가장 가까운 대표점도 최대 거리 밖인 바다 위 */
-	public static final DeviceLocation AT_SEA = location(37.0, 125.5, 20.0);
+	/** 동네 기준 데이터에 없는 동네 ID */
+	public static final NeighborhoodId UNKNOWN = new NeighborhoodId("9999999999");
 
 	private NeighborhoodTestData() {
-	}
-
-	public static DeviceLocation location(double lat, double lon, Double accuracy) {
-		return new DeviceLocation(lat, lon, accuracy);
 	}
 
 	/** 기준 SAMPLE 데이터를 적재한다(멱등). 다른 버전으로 바꾼 테스트도 이걸로 되돌린다. */

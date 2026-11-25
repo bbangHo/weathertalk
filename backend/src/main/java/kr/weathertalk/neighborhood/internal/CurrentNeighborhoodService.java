@@ -19,90 +19,49 @@ import org.springframework.transaction.annotation.Transactional;
 import kr.weathertalk.neighborhood.CurrentNeighborhood;
 import kr.weathertalk.neighborhood.CurrentNeighborhoodChanged;
 import kr.weathertalk.neighborhood.CurrentNeighborhoodConfirmation;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.LocationRejection;
 import kr.weathertalk.neighborhood.Neighborhood;
-import kr.weathertalk.neighborhood.internal.config.NeighborhoodProperties;
+import kr.weathertalk.neighborhood.NeighborhoodStatus;
 import kr.weathertalk.shared.Ids.MemberId;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
-import kr.weathertalk.shared.error.DomainException;
-import kr.weathertalk.shared.error.ErrorCode;
 
 /**
- * 좌표로 동네 판정(FR-NBR-01), 현재 동네 갱신(FR-NBR-02)·확정(FR-NBR-03)·조회(FR-NBR-04).
+ * 현재 동네 확정(FR-NBR-03)·조회(FR-NBR-04).
  * <p>
- * 좌표는 판정 쿼리의 파라미터로만 쓰고 버린다. 저장하는 것은 (회원 ID, 동네 ID, 확정 시각)뿐이며,
- * 예외 메시지·로그·이벤트에 좌표를 넣지 않는다(ADR 0009, BR-NBR-02).
+ * 좌표는 받지 않는다. 앱이 기기 안에서 판정하고 사용자가 확인한 동네 ID만 받아, 존재하고 유효한지만 검사해 저장한다(ADR 0009).
+ * 저장하는 것은 (회원 ID, 동네 ID, 확정 시각)뿐이다.
  */
 @Service
 public class CurrentNeighborhoodService {
 
-	/** 현재 동네 갱신 결과. refreshed=false면 최소 간격 안의 반복 요청이라 판정 없이 저장된 값을 돌려준 것. */
-	public record RefreshResult(CurrentNeighborhood current, boolean refreshed) {
-	}
-
 	private final NeighborhoodRepository neighborhoods;
 	private final JdbcClient jdbc;
 	private final ApplicationEventPublisher events;
-	private final NeighborhoodProperties properties;
 	private final Clock clock;
 
 	CurrentNeighborhoodService(NeighborhoodRepository neighborhoods, JdbcClient jdbc, ApplicationEventPublisher events,
-			NeighborhoodProperties properties, Clock clock) {
+			Clock clock) {
 		this.neighborhoods = neighborhoods;
 		this.jdbc = jdbc;
 		this.events = events;
-		this.properties = properties;
 		this.clock = clock;
 	}
 
-	/** FR-NBR-01: 순수 조회. 좌표 형식 오류는 INVALID_REQUEST, 어느 동네에도 없으면 빈 값. */
-	@Transactional(readOnly = true)
-	public Optional<Neighborhood> locate(DeviceLocation location) {
-		LocationRejection rejection = validateCoordinates(location);
-		if (rejection != null) {
-			throw new DomainException(ErrorCode.INVALID_REQUEST, "좌표가 없거나 올바르지 않습니다.",
-					Map.of("reason", rejection.name()));
-		}
-		return neighborhoods.locate(location.latitude(), location.longitude(), properties.maxNearestDistance());
-	}
-
-	/** FR-NBR-03: 쓰기 직전 확정. 정확도 기준 미달·판정 불가는 거부 사유로 돌려준다. */
+	/** FR-NBR-03: 동네 ID가 없거나·없는 동네거나·폐지된 동네면 거부 사유로 돌려준다. 확정되면 현재 동네로 저장한다. */
 	@Transactional
-	public CurrentNeighborhoodConfirmation confirm(MemberId memberId, DeviceLocation location) {
-		LocationRejection rejection = validateCoordinates(location);
-		if (rejection == null) {
-			rejection = validateAccuracyForWrite(location.accuracyMeters());
+	public CurrentNeighborhoodConfirmation confirm(MemberId memberId, NeighborhoodId neighborhoodId) {
+		if (neighborhoodId == null || neighborhoodId.value() == null || neighborhoodId.value().isBlank()) {
+			return new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.NEIGHBORHOOD_MISSING);
 		}
-		if (rejection != null) {
-			return new CurrentNeighborhoodConfirmation.Rejected(rejection);
+		Optional<Neighborhood> found = neighborhoods.findById(neighborhoodId.value());
+		if (found.isEmpty()) {
+			return new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.NEIGHBORHOOD_UNKNOWN);
 		}
-		Optional<Neighborhood> located = neighborhoods.locate(location.latitude(), location.longitude(),
-				properties.maxNearestDistance());
-		if (located.isEmpty()) {
-			return new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.OUTSIDE_SERVICE_AREA);
+		if (found.get().status() != NeighborhoodStatus.VALID) {
+			return new CurrentNeighborhoodConfirmation.Rejected(LocationRejection.NEIGHBORHOOD_RETIRED);
 		}
-		save(memberId, located.get(), clock.instant());
-		return new CurrentNeighborhoodConfirmation.Confirmed(located.get());
-	}
-
-	/**
-	 * FR-NBR-02: 앱 진입·포그라운드 복귀 때 갱신. 직전 확정 후 neighborhood.current-refresh-min-interval 안이면
-	 * 판정하지 않고 저장된 값을 그대로 돌려준다(앱의 생략 규칙을 서버도 지켜 잦은 호출을 흡수).
-	 * 판정 불가면 저장된 현재 동네를 바꾸지 않고 NEIGHBORHOOD_NOT_RESOLVABLE.
-	 */
-	@Transactional
-	public RefreshResult refresh(MemberId memberId, DeviceLocation location) {
-		Instant now = clock.instant();
-		Optional<CurrentNeighborhood> existing = find(memberId);
-		if (existing.isPresent()
-				&& now.isBefore(existing.get().confirmedAt().plus(properties.currentRefreshMinInterval()))) {
-			return new RefreshResult(existing.get(), false);
-		}
-		Neighborhood located = locate(location).orElseThrow(() -> new DomainException(
-				ErrorCode.NEIGHBORHOOD_NOT_RESOLVABLE, "이 위치가 속한 동네를 찾지 못했습니다."));
-		save(memberId, located, now);
-		return new RefreshResult(new CurrentNeighborhood(memberId, located, now), true);
+		save(memberId, found.get(), clock.instant());
+		return new CurrentNeighborhoodConfirmation.Confirmed(found.get());
 	}
 
 	@Transactional(readOnly = true)
@@ -150,29 +109,6 @@ public class CurrentNeighborhoodService {
 			events.publishEvent(new CurrentNeighborhoodChanged(UUID.randomUUID(), memberId,
 					previous.map(NeighborhoodId::new).orElse(null), neighborhood.id(), now));
 		}
-	}
-
-	private static LocationRejection validateCoordinates(DeviceLocation location) {
-		if (location == null || location.latitude() == null || location.longitude() == null) {
-			return LocationRejection.LOCATION_MISSING;
-		}
-		double lat = location.latitude();
-		double lon = location.longitude();
-		if (!Double.isFinite(lat) || !Double.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-			return LocationRejection.LOCATION_INVALID;
-		}
-		Double accuracy = location.accuracyMeters();
-		if (accuracy != null && (!Double.isFinite(accuracy) || accuracy < 0)) {
-			return LocationRejection.LOCATION_INVALID;
-		}
-		return null;
-	}
-
-	private LocationRejection validateAccuracyForWrite(Double accuracyMeters) {
-		if (accuracyMeters == null) {
-			return LocationRejection.LOCATION_MISSING;
-		}
-		return accuracyMeters > properties.maxAccuracyForWrite() ? LocationRejection.ACCURACY_TOO_LOW : null;
 	}
 
 }

@@ -1,6 +1,6 @@
 package kr.weathertalk.weather;
 
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.AT_SEA;
+import static kr.weathertalk.neighborhood.NeighborhoodTestData.UNKNOWN;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.INSIDE_N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N1;
 import static kr.weathertalk.weather.WeatherStubs.kst;
@@ -40,7 +40,7 @@ class FieldReportTests extends FieldReportTestBase {
 		clock.set(NOW);
 		mvc.perform(post("/api/v1/weather/field-reports").header("Idempotency-Key", newKey())
 			.contentType("application/json")
-			.content("{\"kind\":\"RAIN\",\"latitude\":37.506,\"longitude\":127.004,\"accuracyMeters\":20}"))
+			.content("{\"kind\":\"RAIN\",\"neighborhoodId\":\"9900000001\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("SIGNUP_REQUIRED"));
 
@@ -76,7 +76,7 @@ class FieldReportTests extends FieldReportTestBase {
 		submitViaApi(session, newKey(), "FOG", INSIDE_N1).andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 		submitViaApi(session, newKey(), null, INSIDE_N1).andExpect(status().isBadRequest());
-		submitViaApi(session, newKey(), "RAIN", AT_SEA).andExpect(status().isUnprocessableContent())
+		submitViaApi(session, newKey(), "RAIN", UNKNOWN).andExpect(status().isUnprocessableContent())
 			.andExpect(jsonPath("$.code").value("CURRENT_NEIGHBORHOOD_UNVERIFIED"));
 		assertThat(reportRows()).isZero();
 	}

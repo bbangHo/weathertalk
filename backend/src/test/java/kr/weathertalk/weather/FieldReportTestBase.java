@@ -16,10 +16,10 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import kr.weathertalk.AuthTestClient;
 import kr.weathertalk.IntegrationTestConfiguration.ThreadSafeEventRecorder;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.neighborhood.NeighborhoodTestData;
 import kr.weathertalk.shared.Ids.MemberId;
+import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.idempotency.IdempotencyKey;
 import kr.weathertalk.weather.internal.fieldreport.FieldReportService;
 
@@ -30,8 +30,8 @@ import kr.weathertalk.weather.internal.fieldreport.FieldReportService;
  */
 public abstract class FieldReportTestBase extends WeatherTestBase {
 
-	/** 동네 7(예보 격자 98·76) 대표점 옆 */
-	public static final DeviceLocation AT_N7 = NeighborhoodTestData.location(35.105, 129.005, 20.0);
+	/** 동네 7(예보 격자 98·76) */
+	public static final NeighborhoodId AT_N7 = NeighborhoodTestData.N7;
 
 	@Autowired
 	protected MockMvc mvc;
@@ -83,11 +83,10 @@ public abstract class FieldReportTestBase extends WeatherTestBase {
 	}
 
 	protected ResultActions submitViaApi(AuthTestClient.Session session, String key, String kind,
-			DeviceLocation location) throws Exception {
+			NeighborhoodId location) throws Exception {
 		createdMembers.add(session.memberId());
-		String body = "{\"kind\":" + (kind == null ? "null" : "\"" + kind + "\"") + ",\"latitude\":"
-				+ location.latitude() + ",\"longitude\":" + location.longitude() + ",\"accuracyMeters\":"
-				+ location.accuracyMeters() + "}";
+		String body = "{\"kind\":" + (kind == null ? "null" : "\"" + kind + "\"") + ",\"neighborhoodId\":\""
+				+ location.value() + "\"}";
 		return mvc.perform(post("/api/v1/weather/field-reports").header(HttpHeaders.AUTHORIZATION, session.bearer())
 			.header(IdempotencyKey.HEADER, key)
 			.contentType(MediaType.APPLICATION_JSON)

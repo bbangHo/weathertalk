@@ -1,6 +1,6 @@
 package kr.weathertalk.feeling;
 
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.AT_SEA;
+import static kr.weathertalk.neighborhood.NeighborhoodTestData.UNKNOWN;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.INSIDE_N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N2;
@@ -107,18 +107,15 @@ class FeelingRecordTests extends FeelingTestBase {
 	void recordIsRejectedWhenCurrentNeighborhoodCannotBeConfirmed() throws Exception {
 		clock.set(NOW);
 		AuthTestClient.Session session = signup(TemperatureSensitivity.NORMAL);
-		record(session, newKey(), "COLD", null, null, AT_SEA).andExpect(status().isUnprocessableContent())
+		record(session, newKey(), "COLD", null, null, UNKNOWN).andExpect(status().isUnprocessableContent())
 			.andExpect(jsonPath("$.code").value("CURRENT_NEIGHBORHOOD_UNVERIFIED"))
-			.andExpect(jsonPath("$.reason").value("OUTSIDE_SERVICE_AREA"));
-		record(session, newKey(), "COLD", null, null, NeighborhoodTestData.location(37.506, 127.004, 900.0))
-			.andExpect(status().isUnprocessableContent())
-			.andExpect(jsonPath("$.reason").value("ACCURACY_TOO_LOW"));
+			.andExpect(jsonPath("$.reason").value("NEIGHBORHOOD_UNKNOWN"));
 		mvc.perform(post("/api/v1/feeling/records").header(HttpHeaders.AUTHORIZATION, session.bearer())
 			.header(IdempotencyKey.HEADER, newKey())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"temperature\":\"COLD\"}"))
 			.andExpect(status().isUnprocessableContent())
-			.andExpect(jsonPath("$.reason").value("LOCATION_MISSING"));
+			.andExpect(jsonPath("$.reason").value("NEIGHBORHOOD_MISSING"));
 		assertThat(recordCount()).isZero();
 	}
 
@@ -343,7 +340,7 @@ class FeelingRecordTests extends FeelingTestBase {
 				kst("2026-10-13T08:14"), INSIDE_N1)
 			.andExpect(jsonPath("$.reason").value("STALE"));
 		// 현재 동네 확인 실패도 거부
-		feedback(session, "RIGHT", "JUST_RIGHT", TemperatureSensitivity.NORMAL, N1, basis, derivedAt, AT_SEA)
+		feedback(session, "RIGHT", "JUST_RIGHT", TemperatureSensitivity.NORMAL, N1, basis, derivedAt, UNKNOWN)
 			.andExpect(jsonPath("$.code").value("CURRENT_NEIGHBORHOOD_UNVERIFIED"));
 		assertThat(recordCount()).isZero();
 

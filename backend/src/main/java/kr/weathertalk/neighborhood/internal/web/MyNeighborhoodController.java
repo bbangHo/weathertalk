@@ -25,11 +25,11 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
 class MyNeighborhoodController {
 
 	/** @param neighborhood 현재 동네가 없으면 null — 정상 상태다(BR-NBR-10, legacy 01-#10). */
-	record CurrentNeighborhoodResponse(NeighborhoodResponse neighborhood, Instant confirmedAt, Boolean refreshed) {
+	record CurrentNeighborhoodResponse(NeighborhoodResponse neighborhood, Instant confirmedAt) {
 
-		static CurrentNeighborhoodResponse from(CurrentNeighborhood current, Boolean refreshed) {
+		static CurrentNeighborhoodResponse from(CurrentNeighborhood current) {
 			return new CurrentNeighborhoodResponse(NeighborhoodResponse.from(current.neighborhood()),
-					current.confirmedAt(), refreshed);
+					current.confirmedAt());
 		}
 
 	}
@@ -56,19 +56,21 @@ class MyNeighborhoodController {
 		this.interestService = interestService;
 	}
 
-	/** 앱 진입·포그라운드 복귀 때 현재 동네 갱신. */
+	/**
+	 * 사용자가 확인한 동네로 현재 동네 변경. 좌표 대신 앱이 기기 안에서 판정한 동네 ID를 받는다(ADR 0009).
+	 * 없는 동네·폐지된 동네는 CURRENT_NEIGHBORHOOD_UNVERIFIED.
+	 */
 	@PutMapping("/api/v1/members/me/current-neighborhood")
-	CurrentNeighborhoodResponse refreshCurrent(Requester.Member member, @RequestBody LocationRequest request) {
-		CurrentNeighborhoodService.RefreshResult result = currentService.refresh(member.memberId(),
-				request.toLocation());
-		return CurrentNeighborhoodResponse.from(result.current(), result.refreshed());
+	CurrentNeighborhoodResponse changeCurrent(Requester.Member member, @RequestBody NeighborhoodIdRequest request) {
+		currentService.confirm(member.memberId(), new NeighborhoodId(request.neighborhoodId())).orElseThrow();
+		return currentService.find(member.memberId()).map(CurrentNeighborhoodResponse::from).orElseThrow();
 	}
 
 	@GetMapping("/api/v1/members/me/current-neighborhood")
 	CurrentNeighborhoodResponse current(Requester.Member member) {
 		return currentService.find(member.memberId())
-			.map(c -> CurrentNeighborhoodResponse.from(c, null))
-			.orElse(new CurrentNeighborhoodResponse(null, null, null));
+			.map(CurrentNeighborhoodResponse::from)
+			.orElse(new CurrentNeighborhoodResponse(null, null));
 	}
 
 	@GetMapping("/api/v1/members/me/interest-neighborhoods")

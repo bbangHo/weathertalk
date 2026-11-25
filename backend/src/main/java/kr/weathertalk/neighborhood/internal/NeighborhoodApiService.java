@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.weathertalk.neighborhood.CurrentNeighborhood;
 import kr.weathertalk.neighborhood.CurrentNeighborhoodConfirmation;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.ForecastGrid;
 import kr.weathertalk.neighborhood.InterestMergeResult;
 import kr.weathertalk.neighborhood.Neighborhood;
@@ -47,13 +46,8 @@ class NeighborhoodApiService implements NeighborhoodApi {
 	}
 
 	@Override
-	public Optional<Neighborhood> locate(DeviceLocation location) {
-		return currentService.locate(location);
-	}
-
-	@Override
-	public CurrentNeighborhoodConfirmation confirmCurrentNeighborhood(MemberId memberId, DeviceLocation location) {
-		return currentService.confirm(memberId, location);
+	public CurrentNeighborhoodConfirmation confirmCurrentNeighborhood(MemberId memberId, NeighborhoodId neighborhoodId) {
+		return currentService.confirm(memberId, neighborhoodId);
 	}
 
 	@Override

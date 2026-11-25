@@ -1,6 +1,6 @@
 package kr.weathertalk.community;
 
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.AT_SEA;
+import static kr.weathertalk.neighborhood.NeighborhoodTestData.UNKNOWN;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.INSIDE_N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N2;
@@ -51,7 +51,7 @@ class PostWriteTests extends CommunityTestBase {
 			.andExpect(jsonPath("$.code").value("SIGNUP_REQUIRED"));
 
 		AuthTestClient.Session session = member();
-		createPost(session, newKey(), "바다 위", List.of(), null, AT_SEA).andExpect(status().isUnprocessableContent())
+		createPost(session, newKey(), "바다 위", List.of(), null, UNKNOWN).andExpect(status().isUnprocessableContent())
 			.andExpect(jsonPath("$.code").value("CURRENT_NEIGHBORHOOD_UNVERIFIED"));
 
 		UUID mine = newPost(session, "재동의 전에 쓴 글");

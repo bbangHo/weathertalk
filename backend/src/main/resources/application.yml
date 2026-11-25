@@ -112,14 +112,10 @@ member:
 
 neighborhood:
   max-interest: 5
-  current-refresh-min-interval: 10m
-  max-accuracy-for-write: 500   # 미터
   active-member-window: 30d
   search-max-results: 20
   search-min-length: 1
-  # 최근접 대표점 판정의 최대 거리(미터). 넓은 산간 면(수백 km²)의 외곽에서도 가장 가까운 대표점은 대개 15km 안쪽이라
-  # 여유를 둔 값. 연안 바다 일부도 가까운 동네로 판정되는 것은 감수한다(ADR 0016). 이보다 멀면 판정 불가(바다 위·국외).
-  max-nearest-distance: 20000
+  # 좌표 → 동네 판정(최대 거리·쓰기 정확도)은 앱이 기기 안에서 한다 — 값은 app/src/config/appParams (ADR 0009).
 
 weather:
   mid-term-days: 10

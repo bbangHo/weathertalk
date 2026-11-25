@@ -56,7 +56,7 @@ class PreRefreshTests extends WeatherTestBase {
 		nineOClock = MutableClock.BASE.plus(Duration.ofDays(2000)).truncatedTo(ChronoUnit.HOURS);
 		clock.set(nineOClock.plus(Duration.ofMinutes(15)));
 		member = MemberId.random();
-		neighborhoodApi.confirmCurrentNeighborhood(member, NeighborhoodTestData.location(35.105, 129.005, 20.0))
+		neighborhoodApi.confirmCurrentNeighborhood(member, NeighborhoodTestData.N7)
 			.orElseThrow();
 		assertThat(neighborhoodApi.findActiveForecastGrids()).containsExactly(N7_GRID);
 	}

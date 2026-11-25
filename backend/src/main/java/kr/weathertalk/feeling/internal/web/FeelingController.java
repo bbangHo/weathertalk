@@ -32,7 +32,6 @@ import kr.weathertalk.feeling.internal.FeelingRecordService;
 import kr.weathertalk.member.Requester;
 import kr.weathertalk.member.RequiresAgreedTerms;
 import kr.weathertalk.member.TemperatureSensitivity;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.shared.Ids.NeighborhoodId;
 import kr.weathertalk.shared.error.DomainException;
 import kr.weathertalk.shared.error.ErrorCode;
@@ -40,8 +39,8 @@ import kr.weathertalk.shared.idempotency.IdempotencyKey;
 import kr.weathertalk.shared.idempotency.IdempotentExecutor;
 
 /**
- * 체감 웹 API (04 §4). 기록·피드백은 회원 전용 + 약관 재동의 가드 + 요청 식별자 멱등(contracts §4). 좌표는 본문으로만 받고
- * 저장하지 않는다(ADR 0009). 조회(동네 체감·민감도별 체감·어제와 비교)는 비회원도 할 수 있다(BR-FEL-01).
+ * 체감 웹 API (04 §4). 기록·피드백은 회원 전용 + 약관 재동의 가드 + 요청 식별자 멱등(contracts §4). 좌표는 받지 않고
+ * 앱이 기기 안에서 판정한 동네 ID를 받는다(ADR 0009). 조회(동네 체감·민감도별 체감·어제와 비교)는 비회원도 할 수 있다(BR-FEL-01).
  * 태그는 이름(예: {@code SLIGHTLY_COLD})으로 주고받으며, 범주에 없는 값·온도 누락은 INVALID_REQUEST(legacy 03-#6).
  */
 @RestController
@@ -51,8 +50,7 @@ class FeelingController {
 	 * 체감 기록 남기기 요청. 습도·바람은 선택. 태그는 문자열로 받아 이름으로만 해석한다 — JSON 숫자가 열거형 순서(ordinal)로
 	 * 바뀌어 엉뚱한 단계가 저장되지 않게(단계 번호 ≠ 순서 번호).
 	 */
-	record RecordRequest(@NotNull String temperature, String humidity, String wind, Double latitude, Double longitude,
-			Double accuracyMeters) {
+	record RecordRequest(@NotNull String temperature, String humidity, String wind, String neighborhoodId) {
 
 		@Override
 		public String toString() {
@@ -67,8 +65,8 @@ class FeelingController {
 			@NotNull Instant derivedAt) {
 	}
 
-	record FeedbackRequest(@NotNull String answer, @NotNull @Valid ShownFeeling shown, Double latitude,
-			Double longitude, Double accuracyMeters) {
+	record FeedbackRequest(@NotNull String answer, @NotNull @Valid ShownFeeling shown,
+			String neighborhoodId) {
 
 		@Override
 		public String toString() {
@@ -113,7 +111,7 @@ class FeelingController {
 				() -> recordService.record(member.memberId(), new FeelingRecordService.RecordCommand(
 						parse(TemperatureTag.class, request.temperature()), parse(HumidityTag.class, request.humidity()),
 						parse(WindTag.class, request.wind()),
-						new DeviceLocation(request.latitude(), request.longitude(), request.accuracyMeters()))));
+						new NeighborhoodId(request.neighborhoodId()))));
 	}
 
 	/** FR-FEL-02 체감 피드백 남기기. */
@@ -128,7 +126,7 @@ class FeelingController {
 								parse(DerivationSource.class, shown.source()), shown.mappingVersion(),
 								parse(TemperatureSensitivity.class, shown.temperatureSensitivity()),
 								new NeighborhoodId(shown.neighborhoodId()), shown.basisTime(), shown.derivedAt(),
-								new DeviceLocation(request.latitude(), request.longitude(), request.accuracyMeters()))));
+								new NeighborhoodId(request.neighborhoodId()))));
 	}
 
 	/** FR-FEL-03 동네 체감. */

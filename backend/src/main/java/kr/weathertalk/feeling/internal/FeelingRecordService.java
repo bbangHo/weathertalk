@@ -17,7 +17,6 @@ import kr.weathertalk.feeling.internal.config.FeelingProperties;
 import kr.weathertalk.member.MemberApi;
 import kr.weathertalk.member.MemberProfile;
 import kr.weathertalk.member.TemperatureSensitivity;
-import kr.weathertalk.neighborhood.DeviceLocation;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
 import kr.weathertalk.shared.Ids.MemberId;
@@ -28,7 +27,7 @@ import kr.weathertalk.shared.error.ErrorCode;
 /**
  * 체감 기록 남기기(FR-FEL-01)와 체감 피드백 남기기(FR-FEL-02). 회원·약관 확인은 컨트롤러 파라미터에서 끝난다.
  * <ol>
- * <li>기기 좌표로 neighborhood 현재 동네 확정 — 거부되면 기록하지 않는다. 앱이 보낸 동네 ID는 믿지 않고 좌표도 저장하지 않는다(BR-FEL-02).</li>
+ * <li>앱이 기기 안에서 판정한 동네 ID로 neighborhood 현재 동네 확정 — 거부되면 기록하지 않는다. 좌표는 받지 않는다(BR-FEL-02, ADR 0009).</li>
  * <li>회원의 현재 온도 민감도를 복사한다.</li>
  * <li>관측 스냅샷(실패해도 '미확보'로 저장, BR-FEL-05).</li>
  * <li>덮어쓰기 또는 새 기록(BR-FEL-04) — {@link FeelingRecordWriter}.</li>
@@ -39,7 +38,7 @@ public class FeelingRecordService {
 
 	/** @param humidity·wind 선택. 직접 기록 화면은 아무 태그도 미리 고르지 않는다(BR-FEL-03, 앱 규칙). */
 	public record RecordCommand(TemperatureTag temperature, HumidityTag humidity, WindTag wind,
-			DeviceLocation location) {
+			NeighborhoodId neighborhoodId) {
 	}
 
 	/**
@@ -50,7 +49,7 @@ public class FeelingRecordService {
 	 */
 	public record FeedbackCommand(FeedbackAnswer answer, TemperatureTag shownTemperature, DerivationSource shownSource,
 			Integer shownMappingVersion, TemperatureSensitivity shownSensitivity, NeighborhoodId shownNeighborhoodId,
-			Instant shownBasisTime, Instant shownDerivedAt, DeviceLocation location) {
+			Instant shownBasisTime, Instant shownDerivedAt, NeighborhoodId neighborhoodId) {
 	}
 
 	private final NeighborhoodApi neighborhoodApi;
@@ -74,7 +73,7 @@ public class FeelingRecordService {
 		if (command.temperature() == null) {
 			throw new DomainException(ErrorCode.INVALID_REQUEST, "온도 체감 태그는 필수입니다.");
 		}
-		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.location())
+		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.neighborhoodId())
 			.orElseThrow();
 		TemperatureSensitivity sensitivity = currentSensitivity(memberId);
 		Instant now = clock.instant();
@@ -89,7 +88,7 @@ public class FeelingRecordService {
 				|| command.shownBasisTime() == null || command.shownDerivedAt() == null) {
 			throw new DomainException(ErrorCode.INVALID_REQUEST, "피드백 응답과 보여준 값 정보가 모두 필요합니다.");
 		}
-		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.location())
+		Neighborhood neighborhood = neighborhoodApi.confirmCurrentNeighborhood(memberId, command.neighborhoodId())
 			.orElseThrow();
 		TemperatureSensitivity sensitivity = currentSensitivity(memberId);
 		Instant now = clock.instant();

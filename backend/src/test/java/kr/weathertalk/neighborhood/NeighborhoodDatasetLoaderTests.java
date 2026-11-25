@@ -1,9 +1,7 @@
 package kr.weathertalk.neighborhood;
 
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.INSIDE_N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N1;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N2;
-import static kr.weathertalk.neighborhood.NeighborhoodTestData.N4;
 import static kr.weathertalk.neighborhood.NeighborhoodTestData.N7;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,7 +27,7 @@ import kr.weathertalk.shared.Ids.NeighborhoodId;
 
 /**
  * 동네 기준 데이터 적재 (02 §3.2, BR-NBR-03, ADR 0016): 버전 단위 통째 적재, 비교 보고서(격자 검증 경고 포함), 폐지 처리,
- * 멱등, 코드 유일, 선택 입력인 경계의 포함 검사 우선.
+ * 멱등, 코드 유일, 선택 입력인 경계.
  */
 @IntegrationTest
 class NeighborhoodDatasetLoaderTests {
@@ -81,7 +79,7 @@ class NeighborhoodDatasetLoaderTests {
 	}
 
 	@Test
-	void newVersionReportsAddedChangedAndRetiredAndRetiredAreExcludedFromLocate() {
+	void newVersionReportsAddedChangedAndRetired() {
 		String codes = HEADER + "9900000001,샘플시,가상구,새이름1동,,,127.005,37.505,\n"
 				+ "9900000002,샘플시,가상구,가상2동,,,127.015,37.505,\n" + "9900000008,샘플시,새구,신설동,,,,,\n";
 		// 신설 동네는 대표 좌표 없이 경계만 준다 → 경계 안의 점이 대표 좌표가 된다.
@@ -99,7 +97,6 @@ class NeighborhoodDatasetLoaderTests {
 				"9900000007");
 		assertThat(neighborhoodApi.findNeighborhood(N1).orElseThrow().eupmyeondongName()).isEqualTo("새이름1동");
 		assertThat(neighborhoodApi.findNeighborhood(N7).orElseThrow().status()).isEqualTo(NeighborhoodStatus.RETIRED);
-		assertThat(neighborhoodApi.locate(NeighborhoodTestData.location(35.105, 129.005, 10.0))).isEmpty();
 		GeoPoint n8 = neighborhoodApi.findNeighborhood(new NeighborhoodId("9900000008")).orElseThrow().representativePoint();
 		assertThat(n8.latitude()).isBetween(37.600, 37.610);
 		assertThat(n8.longitude()).isBetween(127.100, 127.110);
@@ -112,12 +109,9 @@ class NeighborhoodDatasetLoaderTests {
 		assertThat(restored.retired()).containsExactly("9900000008");
 	}
 
-	/**
-	 * 경계(선택 입력)가 있는 동네는 포함 검사가 우선이고, 최근접 대표점 검색에는 경계가 없는 동네만 후보가 된다(ADR 0016).
-	 * 경계선 위 좌표도 포함(ST_Covers)한다.
-	 */
+	/** 경계(선택 입력)를 함께 적재하면 그 동네가 변경으로 집계된다. 판정에는 쓰지 않는다(앱이 대표점 최근접으로 판정, ADR 0009). */
 	@Test
-	void boundaryContainmentTakesPrecedenceOverNearestRepresentativePoint() {
+	void optionalBoundaryIsLoaded() {
 		// N2에만 경계: 경도 127.008~127.020, 위도 37.500~37.510
 		String geo = """
 				{"type":"FeatureCollection","features":[
@@ -128,15 +122,8 @@ class NeighborhoodDatasetLoaderTests {
 				NeighborhoodTestData.text(geo));
 
 		assertThat(report.changed()).containsExactly("9900000002");
-		// 대표점은 N1이 더 가깝지만 N2 경계 안
-		assertThat(neighborhoodApi.locate(NeighborhoodTestData.location(37.505, 127.009, 10.0))).map(Neighborhood::id)
-			.contains(N2);
-		// N2 경계선 위
-		assertThat(neighborhoodApi.locate(NeighborhoodTestData.location(37.500, 127.015, 10.0))).map(Neighborhood::id)
-			.contains(N2);
-		// N2 경계 밖이면 N2 대표점이 가장 가까워도 경계 없는 동네(N4) 중 최근접
-		assertThat(neighborhoodApi.locate(NeighborhoodTestData.location(37.511, 127.015, 10.0))).map(Neighborhood::id)
-			.contains(N4);
+		assertThat(jdbc.queryForObject("SELECT boundary IS NOT NULL FROM nbr_neighborhood WHERE code = '9900000002'",
+				Boolean.class)).isTrue();
 	}
 
 	@Test
@@ -160,14 +147,14 @@ class NeighborhoodDatasetLoaderTests {
 				Integer.class)).isZero();
 	}
 
-	/** legacy 04-#26: 동네는 행정동 코드로 식별되고 유일하다. 동시 판정·동시 적재에도 중복 동네가 생기지 않는다. */
+	/** legacy 04-#26: 동네는 행정동 코드로 식별되고 유일하다. 동시 조회·동시 적재에도 중복 동네가 생기지 않는다. */
 	@Test
-	void legacy04_26_concurrentLocatesAndLoadsNeverDuplicateNeighborhoods() throws Exception {
+	void legacy04_26_concurrentReadsAndLoadsNeverDuplicateNeighborhoods() throws Exception {
 		ExecutorService pool = Executors.newFixedThreadPool(8);
 		try {
 			List<Callable<Object>> calls = new ArrayList<>();
 			for (int i = 0; i < 16; i++) {
-				calls.add(() -> neighborhoodApi.locate(INSIDE_N1).orElseThrow().id());
+				calls.add(() -> neighborhoodApi.findNeighborhood(N1).orElseThrow().id());
 			}
 			for (int i = 0; i < 3; i++) {
 				calls.add(() -> NeighborhoodTestData.loadBase(loader));
