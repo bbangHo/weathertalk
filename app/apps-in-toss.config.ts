@@ -3,8 +3,8 @@
 import { defineConfig } from '@apps-in-toss/web-framework/config';
 
 export default defineConfig({
-  // 콘솔에서 앱을 등록할 때 정하는 appName과 같아야 업로드된다. 아직 등록 전이라 임시 값이다(등록 후 바꿀 수 없음).
-  appName: 'weathertalk',
+  // 콘솔에 등록된 appName과 같아야 업로드된다(등록 후 바꿀 수 없음).
+  appName: 'weather-talk-talk',
   brand: {
     primaryColor: '#2F6FED', // theme/tokens.ts의 primary
   },
