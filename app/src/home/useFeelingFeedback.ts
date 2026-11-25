@@ -48,6 +48,9 @@ export function useFeelingFeedback(shown: SensitivityFeeling | null, viewingNeig
     }
     setState({ status: 'idle' });
     const where = await prepareWriteLocation({ store: viewingStore });
+    if (where.status === 'cancelled') {
+      return;
+    }
     if (where.status !== 'ok') {
       setState({ status: 'error', message: LOCATION_UNAVAILABLE_FEEDBACK });
       return;

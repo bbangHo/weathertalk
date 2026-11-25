@@ -54,9 +54,6 @@ public enum ErrorCode {
 
 	// ── neighborhood ──
 
-	/** 좌표가 어느 유효 동네에도 속하지 않는다(바다·국외 등). 조회용 판정(FR-NBR-01·02) 결과. */
-	NEIGHBORHOOD_NOT_RESOLVABLE(HttpStatus.UNPROCESSABLE_CONTENT),
-
 	/** 관심 동네 최대 개수를 넘는다(BR-NBR-08). */
 	INTEREST_NEIGHBORHOOD_LIMIT_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT),
 

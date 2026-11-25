@@ -9,6 +9,7 @@ import { AuthGate } from '@/auth/AuthGate';
 import '@/community/likes';
 import { DemoBadge } from '@/demo/DemoBadge';
 import { AppLifecycle } from '@/entry/AppLifecycle';
+import { NeighborhoodSuggestion } from '@/neighborhood/NeighborhoodSuggestion';
 import { stackScreenOptions } from '@/navigation/stackOptions';
 import { AlertHost } from '@/platform/alert';
 import { useWideLayout } from '@/platform/wideLayout';
@@ -47,6 +48,7 @@ export default function RootLayout() {
           <Stack.Screen name="preview" options={{ headerShown: false }} />
         </Stack>
       </View>
+      <NeighborhoodSuggestion />
       <AlertHost />
     </AppProviders>
   );

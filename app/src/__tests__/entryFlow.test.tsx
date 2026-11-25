@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
 
 import { homeCache } from '@/home/homeCache';
 import { viewingStore } from '@/neighborhood/viewingStore';
@@ -83,9 +84,13 @@ describe('첫 실행 (SCR-12)', () => {
     await renderRouter(APP_DIR);
     await waitFor(() => expect(screen).toHavePathname('/welcome'));
 
+    // 판정 결과는 한 번 묻고 확인한 뒤에 적용한다
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => buttons?.[1]?.onPress?.());
     fireEvent.press(screen.getByTestId('welcome-use-location'));
 
     await waitFor(() => expect(screen).toHavePathname('/'));
+    expect(alert).toHaveBeenCalledWith('지금 위치는 역삼1동이에요', '이 동네로 할까요?', expect.any(Array));
+    alert.mockRestore();
     expect(await screen.findByText('역삼1동')).toBeTruthy();
     expect(screen.getByText('현재 동네')).toBeTruthy();
     const homeCall = calls.find((call) => pathOf(call) === '/api/v1/home');

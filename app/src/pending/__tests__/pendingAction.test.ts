@@ -202,18 +202,43 @@ describe('쓰기 직전 현재 동네 (app.write-location-max-age)', () => {
     await expect(ensureFreshCurrentNeighborhood({ store: viewingStore, now: () => now })).resolves.toBeNull();
 
     mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
-    // 기본 모의 좌표(37.5, 127.0)는 서초구 반포2동
+    // 기본 모의 좌표(37.5, 127.0)는 서초구 반포2동. 비교용일 뿐 확인 전이라 저장하지 않는다.
     await expect(ensureFreshCurrentNeighborhood({ store: viewingStore, now: () => now })).resolves.toBe(BANPO2);
     expect(calls).toHaveLength(0);
+    expect(viewingStore.getState().current?.neighborhoodId).toBe('N1');
   });
 
-  it('쓰기용 좌표는 한 번만 받아 기기 안에서 재판정하고, 동네 ID만 돌려준다', async () => {
+  it('다시 판정한 동네가 화면의 현재 동네와 다르면 묻고, 거절하면 보내지 않는다', async () => {
+    mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
+    await viewingStore.applyJudgement('N1', '2026-10-15T01:00:00Z');
+    const confirmChange = jest.fn(async () => false);
+
+    const result = await prepareWriteLocation({ store: viewingStore, now: () => now, confirmChange });
+
+    expect(result).toEqual({ status: 'cancelled' });
+    expect(confirmChange).toHaveBeenCalledWith(expect.objectContaining({ id: BANPO2, eupmyeondongName: '반포2동' }));
+    expect(viewingStore.getState().current?.neighborhoodId).toBe('N1');
+  });
+
+  it('다시 판정한 동네와 같으면 묻지 않고 보낸다', async () => {
+    mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
+    await viewingStore.applyJudgement(BANPO2, '2026-10-15T01:00:00Z');
+    const confirmChange = jest.fn(async () => true);
+
+    await expect(prepareWriteLocation({ store: viewingStore, now: () => now, confirmChange })).resolves.toEqual({
+      status: 'ok',
+      neighborhoodId: BANPO2,
+    });
+    expect(confirmChange).not.toHaveBeenCalled();
+  });
+
+  it('쓰기용 좌표는 한 번만 받아 기기 안에서 재판정하고, 바뀐 동네를 확인하면 그 동네 ID만 돌려준다', async () => {
     mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
     mockedLocation.getCurrentPositionAsync.mockClear();
     await viewingStore.applyJudgement('N1', '2026-10-15T01:00:00Z');
     const { calls } = installFetch(() => problem(500, 'X'));
 
-    const result = await prepareWriteLocation({ store: viewingStore, now: () => now });
+    const result = await prepareWriteLocation({ store: viewingStore, now: () => now, confirmChange: async () => true });
 
     expect(result).toEqual({ status: 'ok', neighborhoodId: BANPO2 });
     expect(mockedLocation.getCurrentPositionAsync).toHaveBeenCalledTimes(1);

@@ -1,6 +1,6 @@
-// SCR-02 현재 동네 줄 '다시 찾기': 기기 안에서 판정하고, 회원은 확인을 받은 뒤에만 동네 ID로 서버 현재 동네를 바꾼다(ADR 0009)
+// SCR-02 현재 동네 줄 '다시 찾기': 기기 안에서 판정하고, 확인한 뒤에만 현재·보는 동네를 바꾸며 회원은 동네 ID로 서버도 맞춘다(ADR 0009)
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
@@ -18,8 +18,6 @@ const mockedLocation = Location as jest.Mocked<typeof Location>;
 const CURRENT_PATH = '/api/v1/members/me/current-neighborhood';
 /** jest.setup의 기본 모의 좌표(37.5, 127.0)가 속한 동네 */
 const BANPO2 = '1165057000';
-
-type AlertButtons = Parameters<typeof Alert.alert>[2];
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -48,40 +46,54 @@ function serve() {
   });
 }
 
+/** 확인 창에서 index번째 버튼(0: 아니요, 1: 확인)을 누른다 */
+function answerAlert(index: number) {
+  return jest
+    .spyOn(Alert, 'alert')
+    .mockImplementation((_title, _message, buttons) => buttons?.[index]?.onPress?.());
+}
+
 it('회원: 판정한 동네를 묻고, 확인하면 좌표 없이 동네 ID로만 서버 현재 동네를 바꾼다', async () => {
   await sessionStore.saveTokens(tokens('m'));
-  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const alert = answerAlert(1);
+  const { calls } = serve();
+  renderWithClient(<NeighborhoodSwitchScreen />);
+
+  fireEvent.press(await screen.findByText('다시 찾기'));
+
+  await waitFor(() => expect(calls.filter((call) => pathOf(call) === CURRENT_PATH)).toHaveLength(1));
+  expect(alert).toHaveBeenCalledWith('지금 위치는 반포2동이에요', '이 동네로 할까요?', expect.any(Array));
+  const put = calls.find((call) => pathOf(call) === CURRENT_PATH)!;
+  expect(put.method).toBe('PUT');
+  expect(put.body).toEqual({ neighborhoodId: BANPO2 });
+  expect(viewingStore.getState()).toMatchObject({ viewingNeighborhoodId: BANPO2, current: { neighborhoodId: BANPO2 } });
+  alert.mockRestore();
+});
+
+it('아니요를 누르면 현재·보는 동네를 바꾸지 않고 서버로도 보내지 않는다', async () => {
+  await sessionStore.saveTokens(tokens('m'));
+  const alert = answerAlert(0);
   const { calls } = serve();
   renderWithClient(<NeighborhoodSwitchScreen />);
 
   fireEvent.press(await screen.findByText('다시 찾기'));
 
   await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
-  expect(alert.mock.calls[0][0]).toBe('지금 위치는 반포2동이에요');
-  expect(alert.mock.calls[0][1]).toBe('이 동네로 할까요?');
-  expect(viewingStore.getState().current?.neighborhoodId).toBe(BANPO2);
-  // 확인 전에는 서버로 아무것도 보내지 않는다
+  await act(async () => undefined);
+  expect(viewingStore.getState()).toMatchObject({ viewingNeighborhoodId: null, current: null });
   expect(calls.filter((call) => pathOf(call) === CURRENT_PATH)).toHaveLength(0);
-
-  const buttons = alert.mock.calls[0][2] as NonNullable<AlertButtons>;
-  buttons.find((button) => button.style !== 'cancel')!.onPress!();
-
-  await waitFor(() => expect(calls.filter((call) => pathOf(call) === CURRENT_PATH)).toHaveLength(1));
-  const put = calls.find((call) => pathOf(call) === CURRENT_PATH)!;
-  expect(put.method).toBe('PUT');
-  expect(put.body).toEqual({ neighborhoodId: BANPO2 });
+  expect(calls.some((call) => pathOf(call).includes(BANPO2))).toBe(false);
   alert.mockRestore();
 });
 
-it('비회원: 기기 안에서만 판정하고 묻지도, 서버로 보내지도 않는다', async () => {
-  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+it('비회원: 확인하면 기기에만 반영하고 서버 현재 동네는 부르지 않는다', async () => {
+  const alert = answerAlert(1);
   const { calls } = serve();
   renderWithClient(<NeighborhoodSwitchScreen />);
 
   fireEvent.press(await screen.findByText('다시 찾기'));
 
   await waitFor(() => expect(viewingStore.getState().current?.neighborhoodId).toBe(BANPO2));
-  expect(alert).not.toHaveBeenCalled();
   expect(calls.filter((call) => pathOf(call) === CURRENT_PATH)).toHaveLength(0);
   alert.mockRestore();
 });

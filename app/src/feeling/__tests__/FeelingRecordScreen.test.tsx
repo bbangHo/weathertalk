@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
+import { Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { signupSheet } from '@/auth/signupSheet';
@@ -115,7 +116,7 @@ it('비회원은 저장 때 가입 유도 — 고른 태그를 보류 행동으�
   expect(screen.getByTestId('temperature-COLD').props.accessibilityState.selected).toBe(true);
 });
 
-it('판정이 오래됐으면 저장 전에 기기 안에서 재판정하고, 좌표 대신 그 동네 ID·요청 식별자로 보낸다', async () => {
+it('판정이 오래됐으면 저장 전에 기기 안에서 재판정하고, 바뀐 동네를 확인받은 뒤 좌표 대신 그 동네 ID·요청 식별자로 보낸다', async () => {
   await asMember();
   await viewingStore.applyJudgement('N1', '2026-01-01T00:00:00Z');
   const { calls } = installFetch((call) => {
@@ -125,11 +126,15 @@ it('판정이 오래됐으면 저장 전에 기기 안에서 재판정하고, �
     return problem(500, 'X');
   });
   const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+  // 다시 판정한 동네(반포2동)가 화면의 현재 동네(N1)와 달라 확인 창이 뜬다 — 확인을 누른다
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => buttons?.[1]?.onPress?.());
   renderScreen();
   fireEvent.press(screen.getByTestId('temperature-COLD'));
   fireEvent.press(screen.getByTestId('record-save'));
 
   expect(await screen.findByTestId('record-saved')).toBeTruthy();
+  expect(alert).toHaveBeenCalledWith('지금 위치는 반포2동이에요', expect.any(String), expect.any(Array));
+  alert.mockRestore();
   // 동네 이름 조회(GET /neighborhoods/{id})는 표시용이라 빼고 본다
   const paths = calls.map(pathOf).filter((path) => !path.startsWith('/api/v1/neighborhoods/'));
   expect(paths).toEqual(['/api/v1/feeling/records']);
@@ -141,6 +146,23 @@ it('판정이 오래됐으면 저장 전에 기기 안에서 재판정하고, �
   expect(screen.getByText('글로도 남기기')).toBeTruthy();
   expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.home.all });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.me.feelingRecords() });
+});
+
+it('다시 판정한 동네로 바꾸기를 거절하면 보내지 않고 현재 동네도 그대로 둔다', async () => {
+  await asMember();
+  await viewingStore.applyJudgement('N1', '2026-01-01T00:00:00Z');
+  const { calls } = installFetch(() => problem(500, 'X'));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => buttons?.[0]?.onPress?.());
+  renderScreen();
+  fireEvent.press(screen.getByTestId('temperature-COLD'));
+  fireEvent.press(screen.getByTestId('record-save'));
+
+  await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+  await act(async () => undefined);
+  expect(recordPosts(calls)).toHaveLength(0);
+  expect(viewingStore.getState().current?.neighborhoodId).toBe('N1');
+  expect(screen.queryByTestId('record-saved')).toBeNull();
+  alert.mockRestore();
 });
 
 it('저장 실패: 사유를 그대로 보여주고 선택을 유지하며, 다시 시도는 같은 요청 식별자 — 선택을 바꾸면 새 식별자', async () => {

@@ -141,6 +141,9 @@ export function FieldReportScreen() {
     setAxis(setDone, axis, null);
     setNotice(null);
     const where = await prepareWriteLocation({ store: viewingStore });
+    if (where.status === 'cancelled') {
+      return;
+    }
     if (where.status !== 'ok') {
       setAxis(setErrors, axis, REPORT_LOCATION_UNAVAILABLE);
       return;

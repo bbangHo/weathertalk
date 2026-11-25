@@ -86,6 +86,9 @@ export function FeelingRecordScreen() {
     setError(null);
     setNotice(null);
     const where = await prepareWriteLocation({ store: viewingStore });
+    if (where.status === 'cancelled') {
+      return;
+    }
     if (where.status !== 'ok') {
       setError(RECORD_LOCATION_UNAVAILABLE);
       return;

@@ -1,6 +1,6 @@
 // 앱 시작·포그라운드 복귀 처리 (07 §2 규칙 6·9·11, §6.1)
 // - 스플래시: 세션 복원 + 기기 저장값 읽기가 끝나면 내린다. 홈은 마지막 홈 응답을 먼저 보여준다.
-// - 위치 권한이 있으면 app.location-refresh-interval 경과 시 현재 동네 재판정, 권한이 없어졌으면 현재 동네 삭제
+// - 위치 권한이 있으면 app.location-refresh-interval 경과 시 현재 동네 재판정(기기 안, 보는 동네와 다르면 제안만), 권한이 없어졌으면 현재 동네 삭제
 // - 기기 확인(실패해도 화면을 막지 않음)
 // - 가입 중 종료됐던 보류 행동: 회원이면 복원, 아니면 지움(07 §3 규칙 6)
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,7 +12,7 @@ import { getAppParams } from '@/config/appParams';
 import { syncDevice } from '@/device/deviceSync';
 import { homeCache } from '@/home/homeCache';
 import { getLocationPermission } from '@/location/deviceLocation';
-import { judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
+import { judgeAndSuggest } from '@/location/judgeCurrentNeighborhood';
 import { viewingStore } from '@/neighborhood/viewingStore';
 import { resumePendingOnLaunch } from '@/pending/restore';
 import { sessionStore } from '@/session/sessionStore';
@@ -65,7 +65,7 @@ export async function startApp(now: number = Date.now()): Promise<void> {
   }
   if (decision.rejudge) {
     // 판정은 기다리지 않는다 — 그동안 마지막으로 보던 동네를 보여준다.
-    void judgeCurrentNeighborhood({ store: viewingStore });
+    void judgeAndSuggest(viewingStore);
   }
 }
 
@@ -81,7 +81,7 @@ export async function onForeground(now: number = Date.now()): Promise<void> {
     return;
   }
   if (shouldRejudge(state.current, now, getAppParams().locationRefreshIntervalMs)) {
-    await judgeCurrentNeighborhood({ store: viewingStore });
+    await judgeAndSuggest(viewingStore);
   }
 }
 

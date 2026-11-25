@@ -3,12 +3,15 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { api } from '@/api';
 import { AppText, Button } from '@/components/ui';
+import { confirmNeighborhood } from '@/location/confirmNeighborhood';
 import { requestLocationPermission } from '@/location/deviceLocation';
-import { judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
+import { adoptNeighborhood, judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
 import { clearLocationDeclined, recordLocationDeclined } from '@/location/prepromptHistory';
 import { viewingStore } from '@/neighborhood/viewingStore';
 import { routes } from '@/navigation/routes';
+import { sessionStore } from '@/session/sessionStore';
 import { colors, radii, spacing } from '@/theme';
 
 export function WelcomeScreen() {
@@ -24,12 +27,21 @@ export function WelcomeScreen() {
       return;
     }
     await clearLocationDeclined().catch(() => undefined);
-    const result = await judgeCurrentNeighborhood({ store: viewingStore });
-    if (result.status === 'resolved') {
-      router.replace(routes.home());
-    } else {
+    const result = await judgeCurrentNeighborhood();
+    if (result.status !== 'resolved') {
       goSearch();
+      return;
     }
+    // 판정 결과는 한 번 보여 주고 확인을 받은 뒤에 적용한다(ADR 0009).
+    const { id, eupmyeondongName } = result.neighborhood;
+    if (!(await confirmNeighborhood(`지금 위치는 ${eupmyeondongName}이에요`, '이 동네로 할까요?', '이 동네로 할게요'))) {
+      goSearch();
+      return;
+    }
+    const member = sessionStore.getState().status === 'member' ? { api } : null;
+    // 서버 현재 동네 반영이 실패해도 기기에는 반영됐으니 홈으로 간다(다음 쓰기 때 서버도 맞춰진다).
+    await adoptNeighborhood(viewingStore, id, member).catch(() => undefined);
+    router.replace(routes.home());
   };
 
   const later = async () => {

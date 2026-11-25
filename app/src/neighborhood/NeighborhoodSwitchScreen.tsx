@@ -7,20 +7,19 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { api } from '@/api';
 import { AppText, Button, SectionState } from '@/components/ui';
 import { getLocationPermission, requestLocationPermission } from '@/location/deviceLocation';
-import { judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
+import { confirmNeighborhood } from '@/location/confirmNeighborhood';
+import { adoptNeighborhood, judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
 import {
   canOfferLocationPreprompt,
   clearLocationDeclined,
   recordLocationDeclined,
 } from '@/location/prepromptHistory';
 import { routes } from '@/navigation/routes';
-import { Alert } from '@/platform/alert';
 import { sessionStore } from '@/session/sessionStore';
 import { colors, radii, spacing } from '@/theme';
 
 import type { LocationPermission } from '@/entry/entryDecision';
 
-import { setMemberCurrentNeighborhood } from './api';
 import { useInterestNeighborhoods, useNeighborhoodDetail } from './hooks';
 import type { NeighborhoodSummary } from './types';
 import { useViewingState, viewingStore } from './viewingStore';
@@ -160,27 +159,20 @@ function CurrentNeighborhoodRow({
 
   const judge = async () => {
     setMessage(null);
-    const result = await judgeCurrentNeighborhood({ store: viewingStore });
+    const result = await judgeCurrentNeighborhood();
     if (result.status !== 'resolved') {
       setMessage('현재 동네를 찾지 못했어요. 잠시 후 다시 시도해 주세요.');
       return;
     }
-    if (sessionStore.getState().status !== 'member') {
+    // 판정은 기기 안에서 끝났다. 확인한 뒤에만 현재·보는 동네를 바꾸고, 회원이면 동네 ID로 서버도 맞춘다(ADR 0009).
+    const { id, eupmyeondongName } = result.neighborhood;
+    if (!(await confirmNeighborhood(`지금 위치는 ${eupmyeondongName}이에요`, '이 동네로 할까요?', '이 동네로 할게요'))) {
       return;
     }
-    // 판정은 기기 안에서 끝났다. 회원의 서버 현재 동네는 사용자가 확인한 동네 ID로만 바꾼다(ADR 0009).
-    const { id, eupmyeondongName } = result.neighborhood;
-    Alert.alert(`지금 위치는 ${eupmyeondongName}이에요`, '이 동네로 할까요?', [
-      { text: '아니요', style: 'cancel' },
-      {
-        text: '이 동네로 할게요',
-        onPress: () => {
-          setMemberCurrentNeighborhood(api, id).catch(() =>
-            setMessage('현재 동네를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.'),
-          );
-        },
-      },
-    ]);
+    const member = sessionStore.getState().status === 'member' ? { api } : null;
+    await adoptNeighborhood(viewingStore, id, member).catch(() =>
+      setMessage('현재 동네를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.'),
+    );
   };
 
   const enable = async () => {

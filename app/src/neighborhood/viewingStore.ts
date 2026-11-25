@@ -5,13 +5,20 @@ import { useSyncExternalStore } from 'react';
 import { followJudgement } from '@/entry/entryDecision';
 import { generalStore, type StoredCurrentNeighborhood } from '@/storage';
 
+import type { NeighborhoodSummary } from './types';
+
 export type ViewingState = {
   /** 저장소에서 읽기를 마쳤는가 */
   hydrated: boolean;
   onboardingCompleted: boolean;
   viewingNeighborhoodId: string | null;
-  /** 기기가 마지막으로 판정한 현재 동네(좌표 아님) */
+  /** 사용자가 확인한(또는 보는 동네와 같았던) 현재 동네(좌표 아님) */
   current: StoredCurrentNeighborhood | null;
+  /**
+   * 자동 판정이 찾은, 보는 동네와 다른 동네 — 확인 전이라 서버로 보내지 않는다(ADR 0009).
+   * 메모리에만 두고 닫으면 버린다(다음 진입 때 다시 판정).
+   */
+  suggestion: NeighborhoodSummary | null;
 };
 
 export type ViewingKind = 'current' | 'interest' | 'searched';
@@ -23,6 +30,7 @@ const INITIAL: ViewingState = {
   onboardingCompleted: false,
   viewingNeighborhoodId: null,
   current: null,
+  suggestion: null,
 };
 
 export function createViewingStore() {
@@ -71,7 +79,9 @@ export function createViewingStore() {
     },
 
     async setViewing(neighborhoodId: string | null): Promise<void> {
-      setState({ viewingNeighborhoodId: neighborhoodId });
+      // 제안한 동네를 직접 골랐으면 제안은 끝난 것이다.
+      const suggestion = state.suggestion?.id === neighborhoodId ? null : state.suggestion;
+      setState({ viewingNeighborhoodId: neighborhoodId, suggestion });
       await persistViewing(neighborhoodId);
     },
 
@@ -91,12 +101,24 @@ export function createViewingStore() {
       return nextViewing;
     },
 
+    /** 자동 판정 결과를 제안으로만 둔다. 보는 동네·현재 동네는 바꾸지 않는다. */
+    suggest(neighborhood: NeighborhoodSummary): void {
+      setState({ suggestion: neighborhood });
+    },
+
+    dismissSuggestion(): void {
+      if (state.suggestion !== null) {
+        setState({ suggestion: null });
+      }
+    },
+
     /** 위치 권한이 해제됐을 때(§6.1 지우는 때). 보는 동네는 마지막 값 그대로 둔다. */
     async clearCurrent(): Promise<void> {
       if (state.current === null) {
+        this.dismissSuggestion();
         return;
       }
-      setState({ current: null });
+      setState({ current: null, suggestion: null });
       await generalStore.remove('currentNeighborhood');
     },
 

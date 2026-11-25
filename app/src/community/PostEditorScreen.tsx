@@ -314,6 +314,9 @@ function Editor({ mode }: { mode: Mode }) {
       }
 
       const where = await prepareWriteLocation({ store: viewingStore });
+      if (where.status === 'cancelled') {
+        return;
+      }
       if (where.status !== 'ok') {
         setError(POST_LOCATION_UNAVAILABLE);
         return;
