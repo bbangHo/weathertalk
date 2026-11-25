@@ -64,10 +64,24 @@ describe('데모 가짜 서버', () => {
 
     const { postId } = await api.post<{ postId: string }>(
       '/api/v1/community/posts',
-      { body: '새 글', imageIds: [], feelingRecordId: null, latitude: 0, longitude: 0, accuracyMeters: null },
+      { body: '새 글', imageIds: [], feelingRecordId: null, neighborhoodId: DEMO_CURRENT_ID },
       { idempotencyKey: 'k2' },
     );
     expect((await api.get<PostPage>(path)).items[0].postId).toBe(postId);
+  });
+
+  it('현재 동네는 좌표 없이 동네 ID로 바꾸고, 데모에 없는 동네는 거부한다', async () => {
+    const api = demoApi();
+    const path = '/api/v1/members/me/current-neighborhood';
+    await expect(api.put(path, { neighborhoodId: DEMO_CURRENT_ID })).resolves.toMatchObject({
+      neighborhood: { id: DEMO_CURRENT_ID },
+    });
+    await expect(api.put(path, { neighborhoodId: '0000000000' })).rejects.toMatchObject({
+      code: 'CURRENT_NEIGHBORHOOD_UNVERIFIED',
+    });
+    await expect(api.post('/api/v1/neighborhoods/locate', { latitude: 37.5, longitude: 127 })).rejects.toMatchObject({
+      code: 'DEMO_NOT_SUPPORTED',
+    });
   });
 
   it('모르는 요청은 오류로 답한다', async () => {

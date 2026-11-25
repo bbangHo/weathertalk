@@ -1,9 +1,10 @@
 // 앱인토스(토스 미니앱) 위치 권한·좌표. APP_TARGET=ait 빌드에서 deviceLocation.ts 대신 쓰인다(같은 내보내기).
-// 권한 창은 토스 앱이 띄운다. 좌표는 동네 판정 요청 본문으로만 나가고 저장·로그하지 않는다(ADR 0009).
+// 권한 창은 토스 앱이 띄운다. 좌표는 기기 안 동네 판정에만 쓰고 저장·로그·전송하지 않는다(ADR 0009).
 import { Accuracy, Device, type PermissionStatus } from '@apps-in-toss/web-framework';
 
 import type { LocationPermission } from '@/entry/entryDecision';
-import type { LocationRequest } from '@/neighborhood/types';
+
+import type { DeviceCoords } from './localNeighborhood';
 
 export type PermissionResult = {
   permission: LocationPermission;
@@ -36,8 +37,8 @@ export async function requestLocationPermission(): Promise<PermissionResult> {
   }
 }
 
-/** 동네 판정용 좌표 한 번. 정확도는 함께 보내 서버가 판단하게 한다. */
-export async function getLocationForJudgement(): Promise<LocationRequest> {
+/** 동네 판정용 좌표 한 번. 정확도는 함께 돌려줘 쓰기 직전 정확도 기준에 쓴다. */
+export async function getLocationForJudgement(): Promise<DeviceCoords> {
   const position = await Device.getLocation({ accuracy: Accuracy.Balanced });
   const accuracy = position.coords.accuracy;
   return {

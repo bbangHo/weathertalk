@@ -68,8 +68,8 @@ export function defaultPostLoginDeps(client: ApiClient = api): PostLoginDeps {
     mergeInterests: () => mergeGuestInterests(client, getAppParams().maxInterestNeighborhoods),
     // 신규 가입은 민감도 단계의 기본 선택으로만 쓰고, 기존 회원은 버린다 — 어느 쪽이든 완료 후 지운다(§6.1).
     clearGuestSensitivity: () => generalStore.remove('guestTemperatureSensitivity'),
-    // 기기 값을 그대로 보내지 않고 새 좌표로 판정한다. 권한이 없으면 판정 함수가 그냥 끝난다(§6.2).
-    judgeCurrent: () => judgeCurrentNeighborhood({ api: client, store: viewingStore, isMember: true }),
+    // 새 좌표로 기기 안에서 다시 판정한다(서버로 보내지 않음, ADR 0009). 권한이 없으면 판정 함수가 그냥 끝난다(§6.2).
+    judgeCurrent: () => judgeCurrentNeighborhood({ store: viewingStore }),
     onMember: (member) => termsStatus.update(member.termsReagreementRequired, member.termsToReagree),
   };
 }

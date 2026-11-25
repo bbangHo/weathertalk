@@ -1,9 +1,10 @@
-// OS 위치 권한·좌표 (07 §2 규칙 3·5, ADR 0009). 좌표는 이 모듈 밖으로 동네 판정 요청 본문으로만 나가고 저장·로그하지 않는다.
+// OS 위치 권한·좌표 (07 §2 규칙 3·5, ADR 0009). 좌표는 기기 안 동네 판정(localNeighborhood)에만 쓰고 저장·로그·전송하지 않는다.
 import * as Location from 'expo-location';
 
 import { DEMO_MODE } from '@/demo/demoMode';
 import type { LocationPermission } from '@/entry/entryDecision';
-import type { LocationRequest } from '@/neighborhood/types';
+
+import type { DeviceCoords } from './localNeighborhood';
 
 export type PermissionResult = {
   permission: LocationPermission;
@@ -46,11 +47,11 @@ export async function requestLocationPermission(): Promise<PermissionResult> {
 
 /**
  * 동네 판정용 좌표 한 번. iOS '대략적 위치'만 허용돼도 그대로 쓴다 — 보기용 판정이라 막지 않는다(07 §9-5 미결).
- * 정확도는 함께 보내 서버가 판단하게 한다.
+ * 정확도는 함께 돌려줘 쓰기 직전 정확도 기준(writeLocation)에 쓴다.
  */
-export async function getLocationForJudgement(): Promise<LocationRequest> {
+export async function getLocationForJudgement(): Promise<DeviceCoords> {
   if (DEMO_MODE) {
-    // 데모: 브라우저 위치를 묻지 않고 역삼역 근처로 둔다(가짜 서버는 좌표와 상관없이 역삼1동으로 판정).
+    // 데모: 브라우저 위치를 묻지 않고 역삼역 근처로 둔다(기기 안 판정으로 역삼1동).
     return { latitude: 37.5007, longitude: 127.0365, accuracyMeters: 30 };
   }
   const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });

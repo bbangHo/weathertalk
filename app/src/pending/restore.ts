@@ -1,7 +1,6 @@
 // 보류 행동 복원 연결 (07 §3 흐름 MV 이후, 규칙 6). 순수 복원 규칙은 pendingAction.ts에 있다.
 import { router, type Href } from 'expo-router';
 
-import { api } from '@/api';
 import { ensureFreshCurrentNeighborhood } from '@/location/writeLocation';
 import { viewingStore } from '@/neighborhood/viewingStore';
 
@@ -15,7 +14,7 @@ import {
 } from './pendingAction';
 
 async function checkCurrentNeighborhood(action: PendingAction) {
-  const currentId = await ensureFreshCurrentNeighborhood({ api, store: viewingStore, isMember: true });
+  const currentId = await ensureFreshCurrentNeighborhood({ store: viewingStore });
   return compareWithCurrent(action, currentId);
 }
 

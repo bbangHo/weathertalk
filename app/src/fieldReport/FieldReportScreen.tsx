@@ -140,13 +140,13 @@ export function FieldReportScreen() {
     setAxis(setErrors, axis, null);
     setAxis(setDone, axis, null);
     setNotice(null);
-    const where = await prepareWriteLocation({ api, store: viewingStore, isMember: true });
+    const where = await prepareWriteLocation({ store: viewingStore });
     if (where.status !== 'ok') {
       setAxis(setErrors, axis, REPORT_LOCATION_UNAVAILABLE);
       return;
     }
     try {
-      const result = await submitFieldReport(api, kind, where.location, key);
+      const result = await submitFieldReport(api, kind, where.neighborhoodId, key);
       delete keys.current[axis];
       setPicked((prev) => ({ ...prev, [axis]: undefined }));
       setAxis(setDone, axis, '제보했어요');

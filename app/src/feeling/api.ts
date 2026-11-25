@@ -1,7 +1,6 @@
 // 체감 API (04 FR-FEL-01·02·08, backend feeling/internal/web/FeelingController·CalibrationOfferController)
-// 기록·피드백은 Idempotency-Key + 본문에 기기 좌표·정확도(서버가 현재 동네를 확정하고 좌표는 저장하지 않는다).
+// 기록·피드백은 Idempotency-Key + 본문에 기기가 판정한 현재 동네 ID(좌표는 보내지 않는다, ADR 0009).
 import type { ApiClient } from '@/api/client';
-import type { LocationRequest } from '@/neighborhood/types';
 
 import type {
   CalibrationOffer,
@@ -30,12 +29,12 @@ export type RecordSelection = {
 export function postFeelingRecord(
   api: ApiClient,
   selection: RecordSelection,
-  location: LocationRequest,
+  neighborhoodId: string,
   idempotencyKey: string,
 ): Promise<FeelingRecordResult> {
   return api.post<FeelingRecordResult>(
     FEELING_RECORDS_PATH,
-    { ...selection, ...location },
+    { ...selection, neighborhoodId },
     { idempotencyKey },
   );
 }
@@ -45,7 +44,7 @@ export function postFeelingFeedback(
   api: ApiClient,
   answer: FeedbackAnswer,
   shown: SensitivityFeeling,
-  location: LocationRequest,
+  neighborhoodId: string,
   idempotencyKey: string,
 ): Promise<FeelingRecordResult> {
   return api.post<FeelingRecordResult>(
@@ -61,7 +60,7 @@ export function postFeelingFeedback(
         basisTime: shown.basisTime,
         derivedAt: shown.derivedAt,
       },
-      ...location,
+      neighborhoodId,
     },
     { idempotencyKey },
   );

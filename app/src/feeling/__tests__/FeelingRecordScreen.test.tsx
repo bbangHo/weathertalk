@@ -15,7 +15,6 @@ import { queryKeys } from '@/query/queryKeys';
 import { sessionStore } from '@/session/sessionStore';
 import { type FakeCall, jsonResponse, problem, tokens } from '@/test-utils/apiClient';
 import { installFetch, pathOf } from '@/test-utils/globalFetch';
-import { neighborhoodResponse } from '@/test-utils/homeFixtures';
 
 import { FeelingRecordScreen, RECORD_LOCATION_UNAVAILABLE } from '../FeelingRecordScreen';
 import type { TagDefinitions } from '../types';
@@ -116,13 +115,10 @@ it('비회원은 저장 때 가입 유도 — 고른 태그를 보류 행동으�
   expect(screen.getByTestId('temperature-COLD').props.accessibilityState.selected).toBe(true);
 });
 
-it('판정이 오래됐으면 저장 전에 재판정하고, 좌표·정확도·요청 식별자와 함께 현재 동네로 보낸다', async () => {
+it('판정이 오래됐으면 저장 전에 기기 안에서 재판정하고, 좌표 대신 그 동네 ID·요청 식별자로 보낸다', async () => {
   await asMember();
   await viewingStore.applyJudgement('N1', '2026-01-01T00:00:00Z');
   const { calls } = installFetch((call) => {
-    if (pathOf(call) === '/api/v1/members/me/current-neighborhood') {
-      return jsonResponse(200, { neighborhood: neighborhoodResponse('N2', '역삼2동'), confirmedAt: null, refreshed: true });
-    }
     if (pathOf(call) === '/api/v1/feeling/records') {
       return jsonResponse(200, saved);
     }
@@ -136,11 +132,12 @@ it('판정이 오래됐으면 저장 전에 재판정하고, 좌표·정확도·
   expect(await screen.findByTestId('record-saved')).toBeTruthy();
   // 동네 이름 조회(GET /neighborhoods/{id})는 표시용이라 빼고 본다
   const paths = calls.map(pathOf).filter((path) => !path.startsWith('/api/v1/neighborhoods/'));
-  expect(paths).toEqual(['/api/v1/members/me/current-neighborhood', '/api/v1/feeling/records']);
+  expect(paths).toEqual(['/api/v1/feeling/records']);
   const post = recordPosts(calls)[0];
-  expect(post.body).toEqual({ temperature: 'COLD', humidity: null, wind: null, latitude: 37.5, longitude: 127.0, accuracyMeters: 30 });
+  // 기본 모의 좌표(37.5, 127.0)는 반포2동
+  expect(post.body).toEqual({ temperature: 'COLD', humidity: null, wind: null, neighborhoodId: '1165057000' });
   expect(post.headers['Idempotency-Key']).toEqual(expect.any(String));
-  expect(viewingStore.getState().current?.neighborhoodId).toBe('N2');
+  expect(viewingStore.getState().current?.neighborhoodId).toBe('1165057000');
   expect(screen.getByText('글로도 남기기')).toBeTruthy();
   expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.home.all });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.me.feelingRecords() });

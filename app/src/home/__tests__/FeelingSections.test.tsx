@@ -164,7 +164,7 @@ describe('체감 피드백 버튼 (SCR-01 5번)', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('회원: 보여준 값·좌표·요청 식별자로 저장하고 "기록했어요", 이전 기록이 있으면 덮어쓰기 안내', async () => {
+  it('회원: 보여준 값·현재 동네 ID·요청 식별자로 저장하고 "기록했어요", 이전 기록이 있으면 덮어쓰기 안내', async () => {
     await sessionStore.saveTokens(tokens('m'));
     await viewingStore.applyJudgement('N1', new Date().toISOString());
     const { calls } = installFetch((call) =>
@@ -204,9 +204,7 @@ describe('체감 피드백 버튼 (SCR-01 5번)', () => {
         basisTime: '2026-10-15T03:00:00Z',
         derivedAt: '2026-10-15T03:10:00Z',
       },
-      latitude: 37.5,
-      longitude: 127.0,
-      accuracyMeters: 30,
+      neighborhoodId: 'N1',
     });
   });
 

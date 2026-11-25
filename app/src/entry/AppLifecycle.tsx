@@ -65,7 +65,7 @@ export async function startApp(now: number = Date.now()): Promise<void> {
   }
   if (decision.rejudge) {
     // 판정은 기다리지 않는다 — 그동안 마지막으로 보던 동네를 보여준다.
-    void judgeCurrentNeighborhood({ api, store: viewingStore, isMember: isMember() });
+    void judgeCurrentNeighborhood({ store: viewingStore });
   }
 }
 
@@ -81,7 +81,7 @@ export async function onForeground(now: number = Date.now()): Promise<void> {
     return;
   }
   if (shouldRejudge(state.current, now, getAppParams().locationRefreshIntervalMs)) {
-    await judgeCurrentNeighborhood({ api, store: viewingStore, isMember: isMember() });
+    await judgeCurrentNeighborhood({ store: viewingStore });
   }
 }
 

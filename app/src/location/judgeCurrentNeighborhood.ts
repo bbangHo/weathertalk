@@ -1,11 +1,11 @@
 // 현재 동네 판정 (07 §2 규칙 5·6, 02 FR-NBR-01·02). 좌표 → 동네 ID만 남기고 좌표는 버린다.
-// 비회원은 저장 없는 판정(locate), 회원은 현재 동네 갱신(PUT members/me/current-neighborhood)으로 서버의 현재 동네도 맞춘다.
-import type { ApiClient } from '@/api/client';
-import { locateNeighborhood, refreshMemberCurrentNeighborhood } from '@/neighborhood/api';
-import type { LocationRequest, NeighborhoodSummary } from '@/neighborhood/types';
+// 판정은 기기 안에서 한다(localNeighborhood) — 좌표도 판정 결과도 서버로 보내지 않는다(ADR 0009).
+// 회원의 서버 현재 동네는 사용자가 확인한 동작(쓰기, 동네 전환의 '현재 위치' 확인)에서만 바뀐다.
+import type { NeighborhoodSummary } from '@/neighborhood/types';
 import type { ViewingStore } from '@/neighborhood/viewingStore';
 
 import { getLocationForJudgement, getLocationPermission } from './deviceLocation';
+import { type DeviceCoords, locateLocally } from './localNeighborhood';
 
 export type JudgeResult =
   | { status: 'resolved'; neighborhood: NeighborhoodSummary; viewingNeighborhoodId: string }
@@ -13,12 +13,10 @@ export type JudgeResult =
   | { status: 'failed'; error: unknown };
 
 export type JudgeDeps = {
-  api: ApiClient;
   store: ViewingStore;
-  isMember: boolean;
   now?: () => Date;
   /** 쓰기 직전처럼 이미 받은 좌표가 있으면 다시 받지 않고 쓴다 */
-  location?: LocationRequest;
+  location?: DeviceCoords;
 };
 
 let inFlight: Promise<JudgeResult> | null = null;
@@ -33,13 +31,13 @@ export function judgeCurrentNeighborhood(deps: JudgeDeps): Promise<JudgeResult> 
   return inFlight;
 }
 
-async function run({ api, store, isMember, now = () => new Date(), location }: JudgeDeps): Promise<JudgeResult> {
+async function run({ store, now = () => new Date(), location }: JudgeDeps): Promise<JudgeResult> {
   const { permission } = await getLocationPermission();
   if (permission !== 'granted') {
     return { status: 'no-permission' };
   }
   try {
-    const neighborhood = await resolve(api, isMember, location);
+    const neighborhood = await resolve(location);
     if (!neighborhood) {
       return { status: 'failed', error: new Error('현재 동네를 찾지 못했어요.') };
     }
@@ -51,12 +49,8 @@ async function run({ api, store, isMember, now = () => new Date(), location }: J
   }
 }
 
-async function resolve(
-  api: ApiClient,
-  isMember: boolean,
-  given: LocationRequest | undefined,
-): Promise<NeighborhoodSummary | null> {
+async function resolve(given: DeviceCoords | undefined): Promise<NeighborhoodSummary | null> {
   // 좌표는 이 함수 안의 지역 값으로만 존재한다.
   const location = given ?? (await getLocationForJudgement());
-  return isMember ? refreshMemberCurrentNeighborhood(api, location) : locateNeighborhood(api, location);
+  return locateLocally(location.latitude, location.longitude);
 }

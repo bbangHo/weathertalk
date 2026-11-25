@@ -19,10 +19,22 @@ import { sessionStore } from '@/session/sessionStore';
 import { generalStore } from '@/storage';
 import { type FakeCall, jsonResponse, problem } from '@/test-utils/apiClient';
 import { installFetch, pathOf } from '@/test-utils/globalFetch';
-import { homeView, neighborhoodResponse, sensitivityFeelingsOk } from '@/test-utils/homeFixtures';
+import { homeView, sensitivityFeelingsOk } from '@/test-utils/homeFixtures';
 
 const APP_DIR = 'src/app';
 jest.setTimeout(30000);
+
+// 기기 안 동네 판정은 이 테스트의 가상 동네 N1(역삼1동)로 둔다 — 서버로는 아무것도 보내지 않는다.
+jest.mock('@/location/localNeighborhood', () => ({
+  locateLocally: () => ({
+    id: 'N1',
+    sidoName: '서울특별시',
+    sigunguName: '강남구',
+    eupmyeondongName: '역삼1동',
+    fullName: '서울특별시 강남구 역삼1동',
+    shortName: '강남구 역삼1동',
+  }),
+}));
 
 const mockedLocation = Location as jest.Mocked<typeof Location>;
 const granted = { status: 'granted', granted: true, canAskAgain: true, expires: 'never' } as never;
@@ -87,9 +99,6 @@ function server(route: Route) {
     }
     if (url.pathname === '/api/v1/home') {
       return jsonResponse(200, home);
-    }
-    if (url.pathname === '/api/v1/members/me/current-neighborhood') {
-      return jsonResponse(200, { neighborhood: neighborhoodResponse('N1', '역삼1동'), confirmedAt: null, refreshed: true });
     }
     return problem(503, 'TEMPORARILY_UNAVAILABLE');
   });
@@ -186,10 +195,10 @@ describe('가입 유도 (07 §3)', () => {
     });
     expect(calls.find((call) => pathOf(call) === '/api/v1/dev/login')!.body).toEqual({ providerUserId: 'tester1', email: null });
     expect(sessionStore.getState().status).toBe('member');
-    // 로그인 직후: 기기 확인 → (관심 동네 없음) → 현재 동네 판정
+    // 로그인 직후: 기기 확인 → (관심 동네 없음) → 현재 동네 판정(기기 안에서만, 서버로 보내지 않음)
     const paths = calls.map(pathOf);
     expect(paths).toContain('/api/v1/notification/devices/confirm');
-    expect(paths).toContain('/api/v1/members/me/current-neighborhood');
+    expect(paths).not.toContain('/api/v1/members/me/current-neighborhood');
     await expect(generalStore.get('guestTemperatureSensitivity')).resolves.toBeNull();
 
     fireEvent.press(screen.getByTestId('signup-ack'));

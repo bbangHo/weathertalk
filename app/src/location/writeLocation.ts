@@ -1,18 +1,15 @@
 // 쓰기 직전 현재 동네 (07 §1.6 app.write-location-max-age, §3 흐름 NL→LC→LP, SCR-04 진입 조건, ADR 0004·0009)
-// 마지막 판정이 max-age보다 오래됐으면 다시 판정한다. 쓰기 요청 본문용 좌표는 호출한 함수 안에서만 쓰고 저장하지 않는다.
-import type { ApiClient } from '@/api/client';
+// 마지막 판정이 max-age보다 오래됐으면 다시 판정한다. 서버에는 좌표 대신 기기가 판정한 동네 ID만 보낸다.
 import { getAppParams } from '@/config/appParams';
-import type { LocationRequest } from '@/neighborhood/types';
 import type { ViewingStore } from '@/neighborhood/viewingStore';
 import type { StoredCurrentNeighborhood } from '@/storage';
 
 import { getLocationForJudgement, getLocationPermission } from './deviceLocation';
 import { judgeCurrentNeighborhood } from './judgeCurrentNeighborhood';
+import type { DeviceCoords } from './localNeighborhood';
 
 export type WriteLocationDeps = {
-  api: ApiClient;
   store: ViewingStore;
-  isMember: boolean;
   now?: () => number;
 };
 
@@ -35,17 +32,21 @@ export async function ensureFreshCurrentNeighborhood(deps: WriteLocationDeps): P
   if (isJudgementFresh(current, now(), getAppParams().writeLocationMaxAgeMs)) {
     return current!.neighborhoodId;
   }
-  const result = await judgeCurrentNeighborhood({ api: deps.api, store: deps.store, isMember: deps.isMember });
+  const result = await judgeCurrentNeighborhood({ store: deps.store });
   return result.status === 'resolved' ? result.neighborhood.id : null;
 }
 
-export type WriteLocation =
-  | { status: 'ok'; neighborhoodId: string; location: LocationRequest }
-  | { status: 'unavailable' };
+export type WriteLocation = { status: 'ok'; neighborhoodId: string } | { status: 'unavailable' };
+
+/** 쓰기에 쓸 만큼 정확한 위치인가(neighborhood.max-accuracy-for-write, 경계 포함). 정확도를 모르면 쓰지 않는다. */
+function isAccurateForWrite(location: DeviceCoords): boolean {
+  const accuracy = location.accuracyMeters;
+  return accuracy !== null && accuracy <= getAppParams().maxAccuracyForWriteMeters;
+}
 
 /**
- * 쓰기 요청 직전: 서버가 좌표로 현재 동네를 확정하므로(FR-NBR-03) 좌표는 매번 새로 받는다.
- * 앱의 판정이 오래됐으면 같은 좌표로 다시 판정해 화면의 현재 동네도 맞춘다.
+ * 쓰기 요청 직전: 좌표를 새로 받아 정확도를 확인하고(FR-NBR-03), 판정이 오래됐으면 같은 좌표로 기기 안에서 다시 판정한다.
+ * 정확도 미달·판정 불가면 unavailable — 화면은 지금의 쓰기 실패 안내를 보여준다.
  */
 export async function prepareWriteLocation(deps: WriteLocationDeps): Promise<WriteLocation> {
   const now = deps.now ?? Date.now;
@@ -53,18 +54,19 @@ export async function prepareWriteLocation(deps: WriteLocationDeps): Promise<Wri
   if (permission !== 'granted') {
     return { status: 'unavailable' };
   }
-  let location: LocationRequest;
+  let location: DeviceCoords;
   try {
     location = await getLocationForJudgement();
   } catch {
     return { status: 'unavailable' };
   }
+  if (!isAccurateForWrite(location)) {
+    return { status: 'unavailable' };
+  }
   const current = deps.store.getState().current;
   if (isJudgementFresh(current, now(), getAppParams().writeLocationMaxAgeMs)) {
-    return { status: 'ok', neighborhoodId: current!.neighborhoodId, location };
+    return { status: 'ok', neighborhoodId: current!.neighborhoodId };
   }
-  const result = await judgeCurrentNeighborhood({ api: deps.api, store: deps.store, isMember: deps.isMember, location });
-  return result.status === 'resolved'
-    ? { status: 'ok', neighborhoodId: result.neighborhood.id, location }
-    : { status: 'unavailable' };
+  const result = await judgeCurrentNeighborhood({ store: deps.store, location });
+  return result.status === 'resolved' ? { status: 'ok', neighborhoodId: result.neighborhood.id } : { status: 'unavailable' };
 }

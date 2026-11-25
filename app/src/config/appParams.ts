@@ -10,6 +10,13 @@ export type AppParams = {
   locationRefreshIntervalMs: number;
   /** app.write-location-max-age: 쓰기 직전 현재 동네 판정의 최대 경과 시간(ms) */
   writeLocationMaxAgeMs: number;
+  /** neighborhood.max-accuracy-for-write: 쓰기 직전 위치 정확도 기준(미터). 이보다 부정확하면 쓰지 않는다(02 FR-NBR-03) */
+  maxAccuracyForWriteMeters: number;
+  /**
+   * neighborhood.max-nearest-distance: 기기 안 동네 판정에서 가장 가까운 대표점이 이보다 멀면(미터) 판정 불가(바다 위·국외, ADR 0016).
+   * 넓은 산간 면의 외곽도 가장 가까운 대표점은 대개 15km 안쪽이라 여유를 둔 값. 연안 바다 일부가 가까운 동네로 판정되는 것은 감수한다.
+   */
+  maxNearestDistanceMeters: number;
   /** app.permission-preprompt-cooldown: 권한 사전 안내 거절 후 재노출 간격(ms) */
   permissionPrepromptCooldownMs: number;
   /** neighborhood.max-interest: 관심 동네 최대 개수(회원·비회원 공통, 02 BR-NBR-08). 서버 값과 같게 둔다. */
@@ -43,6 +50,8 @@ export const DEFAULT_APP_PARAMS: Readonly<AppParams> = Object.freeze({
   homeStaleAfterMs: 10 * MINUTE,
   locationRefreshIntervalMs: 10 * MINUTE,
   writeLocationMaxAgeMs: 5 * MINUTE,
+  maxAccuracyForWriteMeters: 500,
+  maxNearestDistanceMeters: 20000,
   permissionPrepromptCooldownMs: 7 * DAY,
   maxInterestNeighborhoods: 5,
   neighborhoodSearchMinLength: 1,

@@ -180,7 +180,7 @@ describe('새 글 작성', () => {
     expect(mockManipulator.saveAsync).toHaveBeenCalledWith({ format: 'jpeg', compress: 0.85 });
   });
 
-  it('발급 → 사전 서명 PUT → 확인 순서로 올린 뒤 좌표·요청 식별자와 함께 작성하고, 상세로 바꿔 열며 목록을 무효화한다', async () => {
+  it('발급 → 사전 서명 PUT → 확인 순서로 올린 뒤 현재 동네 ID·요청 식별자와 함께 작성하고, 상세로 바꿔 열며 목록을 무효화한다', async () => {
     await asMemberAtCurrent();
     const { calls } = server();
     const client = testQueryClient();
@@ -214,9 +214,7 @@ describe('새 글 작성', () => {
       body: '비 와요',
       imageIds: ['img1'],
       feelingRecordId: 'rec-1',
-      latitude: 37.5,
-      longitude: 127.0,
-      accuracyMeters: 30,
+      neighborhoodId: 'N1',
     });
     expect(created.headers['Idempotency-Key']).toBeTruthy();
     expect(await generalStore.get('postDraft')).toBeNull();

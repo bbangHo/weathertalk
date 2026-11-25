@@ -3,14 +3,12 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { api } from '@/api';
 import { AppText, Button } from '@/components/ui';
 import { requestLocationPermission } from '@/location/deviceLocation';
 import { judgeCurrentNeighborhood } from '@/location/judgeCurrentNeighborhood';
 import { clearLocationDeclined, recordLocationDeclined } from '@/location/prepromptHistory';
 import { viewingStore } from '@/neighborhood/viewingStore';
 import { routes } from '@/navigation/routes';
-import { sessionStore } from '@/session/sessionStore';
 import { colors, radii, spacing } from '@/theme';
 
 export function WelcomeScreen() {
@@ -26,11 +24,7 @@ export function WelcomeScreen() {
       return;
     }
     await clearLocationDeclined().catch(() => undefined);
-    const result = await judgeCurrentNeighborhood({
-      api,
-      store: viewingStore,
-      isMember: sessionStore.getState().status === 'member',
-    });
+    const result = await judgeCurrentNeighborhood({ store: viewingStore });
     if (result.status === 'resolved') {
       router.replace(routes.home());
     } else {

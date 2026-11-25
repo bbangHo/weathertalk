@@ -1,7 +1,6 @@
 // 현장 제보 API (03 FR-WEA-04·05·14, backend weather/internal/web/FieldReportController)
-// 제보는 Idempotency-Key + 본문에 기기 좌표·정확도(서버가 현재 동네를 확정하고 좌표는 저장하지 않는다). 동네 ID는 보내지 않는다.
+// 제보는 Idempotency-Key + 본문에 기기가 판정한 현재 동네 ID(좌표는 보내지 않는다, ADR 0009).
 import type { ApiClient } from '@/api/client';
-import type { LocationRequest } from '@/neighborhood/types';
 
 import type { FieldReportKind, FieldReportResult, FieldReportStatus } from './types';
 
@@ -10,10 +9,10 @@ export const FIELD_REPORTS_PATH = '/api/v1/weather/field-reports';
 export function submitFieldReport(
   api: ApiClient,
   kind: FieldReportKind,
-  location: LocationRequest,
+  neighborhoodId: string,
   idempotencyKey: string,
 ): Promise<FieldReportResult> {
-  return api.post<FieldReportResult>(FIELD_REPORTS_PATH, { kind, ...location }, { idempotencyKey });
+  return api.post<FieldReportResult>(FIELD_REPORTS_PATH, { kind, neighborhoodId }, { idempotencyKey });
 }
 
 export function cancelFieldReport(api: ApiClient, reportId: string): Promise<FieldReportResult> {

@@ -6,10 +6,8 @@ import { resetAppParams } from '@/config/appParams';
 import { ensureFreshCurrentNeighborhood, isJudgementFresh, prepareWriteLocation } from '@/location/writeLocation';
 import { viewingStore } from '@/neighborhood/viewingStore';
 import { generalStore } from '@/storage';
-import { jsonResponse, problem } from '@/test-utils/apiClient';
-import { installFetch, pathOf } from '@/test-utils/globalFetch';
-import { neighborhoodResponse } from '@/test-utils/homeFixtures';
-import { api } from '@/api';
+import { problem } from '@/test-utils/apiClient';
+import { installFetch } from '@/test-utils/globalFetch';
 
 import {
   compareWithCurrent,
@@ -27,6 +25,8 @@ import { createWriteGate } from '../writeGate';
 
 const mockedLocation = Location as jest.Mocked<typeof Location>;
 const granted = { status: 'granted', granted: true, canAskAgain: true, expires: 'never' } as never;
+/** jest.setup의 기본 모의 좌표(37.5, 127.0)를 기기 안에서 판정한 동네(서울 서초구 반포2동) */
+const BANPO2 = '1165057000';
 
 const record: PendingAction = {
   kind: 'feelingRecord',
@@ -192,38 +192,61 @@ describe('쓰기 직전 현재 동네 (app.write-location-max-age)', () => {
   it('신선하면 재판정하지 않는다', async () => {
     const { calls } = installFetch(() => problem(500, 'X'));
     await viewingStore.applyJudgement('N1', '2026-10-15T02:58:00Z');
-    await expect(ensureFreshCurrentNeighborhood({ api, store: viewingStore, isMember: true, now: () => now })).resolves.toBe('N1');
+    await expect(ensureFreshCurrentNeighborhood({ store: viewingStore, now: () => now })).resolves.toBe('N1');
     expect(calls).toHaveLength(0);
   });
 
-  it('오래됐으면 재판정하고, 권한이 없으면 판정 불가', async () => {
+  it('오래됐으면 기기 안에서 재판정하고(서버 호출 없음), 권한이 없으면 판정 불가', async () => {
     await viewingStore.applyJudgement('N1', '2026-10-15T01:00:00Z');
-    const { calls } = installFetch((call) =>
-      pathOf(call) === '/api/v1/members/me/current-neighborhood'
-        ? jsonResponse(200, { neighborhood: neighborhoodResponse('N2', '역삼2동'), confirmedAt: null, refreshed: true })
-        : problem(500, 'X'),
-    );
-    await expect(ensureFreshCurrentNeighborhood({ api, store: viewingStore, isMember: true, now: () => now })).resolves.toBeNull();
-    expect(calls).toHaveLength(0);
+    const { calls } = installFetch(() => problem(500, 'X'));
+    await expect(ensureFreshCurrentNeighborhood({ store: viewingStore, now: () => now })).resolves.toBeNull();
 
     mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
-    await expect(ensureFreshCurrentNeighborhood({ api, store: viewingStore, isMember: true, now: () => now })).resolves.toBe('N2');
-    expect(calls.map(pathOf)).toEqual(['/api/v1/members/me/current-neighborhood']);
+    // 기본 모의 좌표(37.5, 127.0)는 서초구 반포2동
+    await expect(ensureFreshCurrentNeighborhood({ store: viewingStore, now: () => now })).resolves.toBe(BANPO2);
+    expect(calls).toHaveLength(0);
   });
 
-  it('쓰기용 좌표는 한 번만 받아 재판정과 요청 본문에 함께 쓴다', async () => {
+  it('쓰기용 좌표는 한 번만 받아 기기 안에서 재판정하고, 동네 ID만 돌려준다', async () => {
     mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
     mockedLocation.getCurrentPositionAsync.mockClear();
     await viewingStore.applyJudgement('N1', '2026-10-15T01:00:00Z');
-    const { calls } = installFetch(() => jsonResponse(200, neighborhoodResponse('N1', '역삼1동')));
+    const { calls } = installFetch(() => problem(500, 'X'));
 
-    const result = await prepareWriteLocation({ api, store: viewingStore, isMember: false, now: () => now });
+    const result = await prepareWriteLocation({ store: viewingStore, now: () => now });
 
-    expect(result).toMatchObject({ status: 'ok', neighborhoodId: 'N1', location: { accuracyMeters: 30 } });
+    expect(result).toEqual({ status: 'ok', neighborhoodId: BANPO2 });
     expect(mockedLocation.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
-    expect(calls.map(pathOf)).toEqual(['/api/v1/neighborhoods/locate']);
+    expect(calls).toHaveLength(0);
     // 기기에는 좌표가 남지 않는다
-    await expect(generalStore.get('currentNeighborhood')).resolves.toEqual({ neighborhoodId: 'N1', resolvedAt: expect.any(String) });
+    await expect(generalStore.get('currentNeighborhood')).resolves.toEqual({
+      neighborhoodId: BANPO2,
+      resolvedAt: expect.any(String),
+    });
+  });
+
+  it('신선한 판정이면 보여준 현재 동네를 그대로 쓴다', async () => {
+    mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
+    await viewingStore.applyJudgement('N1', '2026-10-15T02:58:00Z');
+
+    await expect(prepareWriteLocation({ store: viewingStore, now: () => now })).resolves.toEqual({
+      status: 'ok',
+      neighborhoodId: 'N1',
+    });
+  });
+
+  it('위치 정확도가 기준(500m)보다 나쁘거나 모르면 쓰지 않는다', async () => {
+    mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(granted);
+    await viewingStore.applyJudgement('N1', '2026-10-15T02:58:00Z');
+    const position = (accuracy: number | null) =>
+      ({ coords: { latitude: 37.5, longitude: 127.0, accuracy }, timestamp: 0 }) as never;
+
+    mockedLocation.getCurrentPositionAsync.mockResolvedValueOnce(position(500));
+    await expect(prepareWriteLocation({ store: viewingStore, now: () => now })).resolves.toMatchObject({ status: 'ok' });
+    mockedLocation.getCurrentPositionAsync.mockResolvedValueOnce(position(500.1));
+    await expect(prepareWriteLocation({ store: viewingStore, now: () => now })).resolves.toEqual({ status: 'unavailable' });
+    mockedLocation.getCurrentPositionAsync.mockResolvedValueOnce(position(null));
+    await expect(prepareWriteLocation({ store: viewingStore, now: () => now })).resolves.toEqual({ status: 'unavailable' });
   });
 });
 

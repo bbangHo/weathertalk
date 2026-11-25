@@ -29,7 +29,6 @@ export type NeighborhoodSummary = {
 export type CurrentNeighborhoodResponse = {
   neighborhood: NeighborhoodResponse | null;
   confirmedAt: string | null;
-  refreshed: boolean | null;
 };
 
 /** 백엔드 MyNeighborhoodController.MergeResponse */
@@ -39,13 +38,6 @@ export type MergeResponse = {
   skipped: string[];
   /** 최대 개수를 넘어 버린 ID */
   discarded: string[];
-};
-
-/** 백엔드 LocationRequest. 좌표는 본문으로만 보낸다(ADR 0009). */
-export type LocationRequest = {
-  latitude: number;
-  longitude: number;
-  accuracyMeters: number | null;
 };
 
 export function toSummary(response: NeighborhoodResponse): NeighborhoodSummary {

@@ -1,7 +1,6 @@
 // 커뮤니티 API (05 §10 구현 메모 웹 API, backend community/internal/web/PostController·CommentController·ImageController)
-// 게시글·댓글·답글 작성은 Idempotency-Key, 게시글 작성 본문에는 기기 좌표·정확도(서버가 현재 동네를 확정하고 저장하지 않는다).
+// 게시글·댓글·답글 작성은 Idempotency-Key, 게시글 작성 본문에는 기기가 판정한 현재 동네 ID(좌표는 보내지 않는다, ADR 0009).
 import type { ApiClient } from '@/api/client';
-import type { LocationRequest } from '@/neighborhood/types';
 
 import type { CommentPage, LikeState, PostDetail, PostPage, PostSummary, UploadedImage, UploadTicket } from './types';
 
@@ -37,10 +36,10 @@ export type CreatePostInput = { body: string; imageIds: string[]; feelingRecordI
 export function createPost(
   api: ApiClient,
   input: CreatePostInput,
-  location: LocationRequest,
+  neighborhoodId: string,
   idempotencyKey: string,
 ): Promise<{ postId: string }> {
-  return api.post<{ postId: string }>('/api/v1/community/posts', { ...input, ...location }, { idempotencyKey });
+  return api.post<{ postId: string }>('/api/v1/community/posts', { ...input, neighborhoodId }, { idempotencyKey });
 }
 
 /** 수정은 최종 상태(본문·이미지 목록·첨부 해제 여부)를 보낸다. 동네·좌표는 보내지 않는다(BR-COM-07). */

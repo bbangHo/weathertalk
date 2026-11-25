@@ -897,7 +897,13 @@ export function createDemoServer(now: number = Date.now()) {
     [
       'PUT',
       /^\/api\/v1\/members\/me\/current-neighborhood$/,
-      () => json({ neighborhood: currentPlace(), confirmedAt: new Date().toISOString(), refreshed: true }),
+      (_m, body) => {
+        // 좌표 대신 기기가 판정하고 사용자가 확인한 동네 ID를 받는다(ADR 0009). 데모 동네 밖이면 거부.
+        const place = places.get(String(body.neighborhoodId));
+        return place
+          ? json({ neighborhood: place, confirmedAt: new Date().toISOString() })
+          : problem(422, 'CURRENT_NEIGHBORHOOD_UNVERIFIED', '현재 동네를 확인하지 못했어요');
+      },
     ],
     ['GET', /^\/api\/v1\/members\/me\/interest-neighborhoods$/, () => json(interestList())],
     [
@@ -932,7 +938,6 @@ export function createDemoServer(now: number = Date.now()) {
         return json(interestList());
       },
     ],
-    ['POST', /^\/api\/v1\/neighborhoods\/locate$/, () => json(currentPlace())],
     [
       'GET',
       /^\/api\/v1\/neighborhoods\/search$/,

@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 
 import { signupSheet } from '@/auth/signupSheet';
+import * as localNeighborhood from '@/location/localNeighborhood';
 import { termsStatus } from '@/auth/termsStatus';
 import { viewingStore } from '@/neighborhood/viewingStore';
 import { pendingActionStore, restoredActions } from '@/pending/pendingAction';
@@ -148,15 +149,21 @@ it('가입 후 복원: 선택을 채우고 안내를 보여주며 자동 제출�
   expect(submits(calls)).toHaveLength(0);
 });
 
-it('판정이 오래됐으면 제보 전에 재판정하고, 좌표·정확도·요청 식별자로 보낸 뒤 현황을 갱신하고 홈을 무효화한다', async () => {
+it('판정이 오래됐으면 제보 전에 기기 안에서 재판정하고, 좌표 대신 그 동네 ID·요청 식별자로 보낸 뒤 현황을 갱신하고 홈을 무효화한다', async () => {
   await asMember();
   await viewingStore.applyJudgement('N1', '2026-01-01T00:00:00Z');
-  const { calls } = serve(fieldReportStatus(), (call) => {
-    if (pathOf(call) === '/api/v1/members/me/current-neighborhood') {
-      return jsonResponse(200, { neighborhood: neighborhoodResponse('N1', '역삼1동'), confirmedAt: null, refreshed: true });
-    }
-    return pathOf(call) === SUBMIT_PATH ? jsonResponse(200, result('RAIN')) : null;
+  // 기기 안 재판정 결과를 이 테스트의 가상 동네 N1로 둔다
+  const judge = jest.spyOn(localNeighborhood, 'locateLocally').mockReturnValue({
+    id: 'N1',
+    sidoName: '서울특별시',
+    sigunguName: '강남구',
+    eupmyeondongName: '역삼1동',
+    fullName: '서울특별시 강남구 역삼1동',
+    shortName: '강남구 역삼1동',
   });
+  const { calls } = serve(fieldReportStatus(), (call) =>
+    pathOf(call) === SUBMIT_PATH ? jsonResponse(200, result('RAIN')) : null,
+  );
   const client = testQueryClient();
   const invalidate = jest.spyOn(client, 'invalidateQueries');
   renderWithClient(<FieldReportScreen />, client);
@@ -165,9 +172,11 @@ it('판정이 오래됐으면 제보 전에 재판정하고, 좌표·정확도·
 
   expect(await screen.findByTestId('report-done-SKY_PRECIPITATION')).toHaveTextContent('제보했어요');
   const writes = calls.filter((call) => call.method !== 'GET').map(pathOf);
-  expect(writes).toEqual(['/api/v1/members/me/current-neighborhood', SUBMIT_PATH]);
+  expect(writes).toEqual([SUBMIT_PATH]);
+  expect(judge).toHaveBeenCalledWith(37.5, 127.0);
+  judge.mockRestore();
   const post = submits(calls)[0];
-  expect(post.body).toEqual({ kind: 'RAIN', latitude: 37.5, longitude: 127.0, accuracyMeters: 30 });
+  expect(post.body).toEqual({ kind: 'RAIN', neighborhoodId: 'N1' });
   expect(post.headers['Idempotency-Key']).toEqual(expect.any(String));
   expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.home.all });
   // 응답의 현황으로 바로 바뀌고 방금 제보는 취소할 수 있다

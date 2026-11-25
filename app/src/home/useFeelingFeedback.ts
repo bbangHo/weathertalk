@@ -47,7 +47,7 @@ export function useFeelingFeedback(shown: SensitivityFeeling | null, viewingNeig
       lastAnswer.current = answer;
     }
     setState({ status: 'idle' });
-    const where = await prepareWriteLocation({ api, store: viewingStore, isMember: true });
+    const where = await prepareWriteLocation({ store: viewingStore });
     if (where.status !== 'ok') {
       setState({ status: 'error', message: LOCATION_UNAVAILABLE_FEEDBACK });
       return;
@@ -57,7 +57,7 @@ export function useFeelingFeedback(shown: SensitivityFeeling | null, viewingNeig
       return;
     }
     try {
-      await postFeelingFeedback(api, answer, shown, where.location, key.current());
+      await postFeelingFeedback(api, answer, shown, where.neighborhoodId, key.current());
       key.renew();
       lastAnswer.current = null;
       setState({ status: 'saved', answer });

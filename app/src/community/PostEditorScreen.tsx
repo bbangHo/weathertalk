@@ -313,7 +313,7 @@ function Editor({ mode }: { mode: Mode }) {
         return;
       }
 
-      const where = await prepareWriteLocation({ api, store: viewingStore, isMember: true });
+      const where = await prepareWriteLocation({ store: viewingStore });
       if (where.status !== 'ok') {
         setError(POST_LOCATION_UNAVAILABLE);
         return;
@@ -328,7 +328,7 @@ function Editor({ mode }: { mode: Mode }) {
         key.renew();
         attempted.current = signature;
       }
-      const created = await createPost(api, input, where.location, key.current());
+      const created = await createPost(api, input, where.neighborhoodId, key.current());
       attempted.current = null;
       await postDraftStore.clear().catch(() => undefined);
       await invalidatePostLists(queryClient).catch(() => undefined);

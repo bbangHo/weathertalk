@@ -85,7 +85,7 @@ export function FeelingRecordScreen() {
     }
     setError(null);
     setNotice(null);
-    const where = await prepareWriteLocation({ api, store: viewingStore, isMember: true });
+    const where = await prepareWriteLocation({ store: viewingStore });
     if (where.status !== 'ok') {
       setError(RECORD_LOCATION_UNAVAILABLE);
       return;
@@ -94,7 +94,7 @@ export function FeelingRecordScreen() {
       const result = await postFeelingRecord(
         api,
         { temperature: selection.temperature, humidity: selection.humidity, wind: selection.wind },
-        where.location,
+        where.neighborhoodId,
         key.current(),
       );
       attempted.current = null;

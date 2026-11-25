@@ -14,6 +14,18 @@ import { homeView, neighborhoodResponse } from '@/test-utils/homeFixtures';
 const APP_DIR = 'src/app';
 jest.setTimeout(30000);
 
+// 기기 안 동네 판정은 이 테스트의 가상 동네 N1(역삼1동)로 둔다 — 좌표도 판정 결과도 서버로 보내지 않는다.
+jest.mock('@/location/localNeighborhood', () => ({
+  locateLocally: () => ({
+    id: 'N1',
+    sidoName: '서울특별시',
+    sigunguName: '강남구',
+    eupmyeondongName: '역삼1동',
+    fullName: '서울특별시 강남구 역삼1동',
+    shortName: '강남구 역삼1동',
+  }),
+}));
+
 const mockedLocation = Location as jest.Mocked<typeof Location>;
 const permission = (status: 'granted' | 'denied' | 'undetermined', canAskAgain = true) =>
   ({ status, granted: status === 'granted', canAskAgain, expires: 'never' }) as never;
@@ -62,10 +74,6 @@ describe('첫 실행 (SCR-12)', () => {
   it('"위치 사용하기" → 권한 허용 → 판정한 현재 동네로 홈', async () => {
     mockedLocation.requestForegroundPermissionsAsync.mockResolvedValue(permission('granted'));
     const { calls } = server((call, url) => {
-      if (url.pathname === '/api/v1/neighborhoods/locate') {
-        mockedLocation.getForegroundPermissionsAsync.mockResolvedValue(permission('granted'));
-        return jsonResponse(200, neighborhoodResponse('N1', '역삼1동'));
-      }
       if (url.pathname === '/api/v1/home') {
         return jsonResponse(200, homeView());
       }
@@ -83,6 +91,7 @@ describe('첫 실행 (SCR-12)', () => {
     const homeCall = calls.find((call) => pathOf(call) === '/api/v1/home');
     expect(new URL(homeCall!.url).searchParams.get('neighborhoodId')).toBe('N1');
     await expect(generalStore.get('currentNeighborhood')).resolves.toMatchObject({ neighborhoodId: 'N1' });
+    expect(calls.map(pathOf)).not.toContain('/api/v1/members/me/current-neighborhood');
   });
 
   it('권한을 거부하면 동네 검색으로', async () => {
