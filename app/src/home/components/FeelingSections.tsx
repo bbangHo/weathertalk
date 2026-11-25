@@ -259,8 +259,8 @@ function FeedbackArea({
 
   return (
     <View style={styles.feedback} testID="feedback-area">
-      <AppText variant="caption" tone="secondary">
-        답하면 위 결과가 바로 바뀌어요
+      <AppText variant="caption" tone="secondary" testID="feedback-question">
+        {`나 같은 사람은 '${TEMPERATURE_PHRASE[shown.temperatureTag] ?? label(shown.temperatureTag) ?? ''}'래요. 나는 어땠나요?`}
       </AppText>
       {restoredNotice ? (
         <AppText tone="primary" testID="feedback-restored">

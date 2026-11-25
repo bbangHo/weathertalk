@@ -34,10 +34,16 @@ export async function pickImages(limit: number): Promise<PickedImage[]> {
   const items = await Device.getAlbumItems({ types: ['PHOTO'], maxCount: limit, maxWidth: ALBUM_MAX_WIDTH, base64: true });
   const picked: PickedImage[] = [];
   for (const item of items.slice(0, limit)) {
-    const image = await loadImage(item.dataUri);
-    picked.push({ uri: item.dataUri, width: image.naturalWidth, height: image.naturalHeight });
+    const uri = toDataUri(item.dataUri);
+    const image = await loadImage(uri);
+    picked.push({ uri, width: image.naturalWidth, height: image.naturalHeight });
   }
   return picked;
+}
+
+/** base64: true면 토스가 접두어 없는 base64 문자열을 줄 수 있다(실기기에서 사진을 못 읽던 원인으로 추정). 접두어가 없으면 붙인다. */
+export function toDataUri(value: string): string {
+  return /^(data:|https?:|file:|blob:)/.test(value) ? value : `data:${JPEG};base64,${value}`;
 }
 
 /** 어떤 형식이든 JPEG 데이터 URI로 다시 그린다. 긴 변이 maxDimension보다 크면 줄인다. */
