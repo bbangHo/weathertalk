@@ -8,6 +8,7 @@ import type { ApiClient } from '@/api/client';
 import { isApiError } from '@/api/errors';
 
 import { completeImageUpload, requestImageUpload } from './api';
+import { uploadHeaders } from './uploadHeaders';
 import type { UploadedImage } from './types';
 
 export const JPEG = 'image/jpeg';
@@ -110,7 +111,7 @@ export async function uploadImage(api: ApiClient, localUri: string, maxFileSize:
     const response = await fetch(ticket.uploadUrl, {
       method: 'PUT',
       // 서명에 형식이 들어가므로 서버가 준 헤더를 그대로 붙인다.
-      headers: { 'Content-Type': JPEG, ...ticket.headers },
+      headers: uploadHeaders(ticket.headers, JPEG),
       body: blob,
     });
     if (!response.ok) {

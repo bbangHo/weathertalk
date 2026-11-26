@@ -9,6 +9,7 @@ import type { ApiClient } from '@/api/client';
 import { isApiError } from '@/api/errors';
 
 import { completeImageUpload, requestImageUpload } from './api';
+import { uploadHeaders } from './uploadHeaders';
 import type { UploadedImage } from './types';
 
 export const JPEG = 'image/jpeg';
@@ -89,7 +90,7 @@ export async function uploadImage(api: ApiClient, localUri: string, maxFileSize:
     const result = await file.upload(ticket.uploadUrl, {
       httpMethod: 'PUT',
       // 서명에 형식이 들어가므로 서버가 준 헤더를 그대로 붙인다.
-      headers: { 'Content-Type': JPEG, ...ticket.headers },
+      headers: uploadHeaders(ticket.headers, JPEG),
     });
     if (result.status < 200 || result.status >= 300) {
       throw new ImageUploadError('사진을 올리지 못했어요. 다시 시도해 주세요.', 'STORAGE');
