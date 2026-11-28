@@ -24,6 +24,7 @@ import kr.weathertalk.feeling.FeelingApi;
 import kr.weathertalk.feeling.FeelingRecordView;
 import kr.weathertalk.member.MemberApi;
 import kr.weathertalk.member.MemberProfile;
+import kr.weathertalk.member.MemberStatus;
 import kr.weathertalk.member.Requester;
 import kr.weathertalk.neighborhood.Neighborhood;
 import kr.weathertalk.neighborhood.NeighborhoodApi;
@@ -250,12 +251,19 @@ public class PostQueryService implements CommunityApi {
 			.toList();
 	}
 
-	/** 활동 중인 작성자의 프로필만. 탈퇴·없는 회원은 빠진다(BR-COM-14). */
+	/** 익명으로 남긴 글·댓글의 작성자 표시(민감도 없음). */
+	private static final MemberProfile ANONYMOUS_PROFILE = new MemberProfile(
+			new MemberId(CommunityMemberWithdrawalCleaner.ANONYMOUS_AUTHOR), "탈퇴한 이웃", null, MemberStatus.ACTIVE);
+
+	/** 활동 중인 작성자의 프로필만. 탈퇴·없는 회원은 빠진다(BR-COM-14). 익명으로 남긴 작성자는 "탈퇴한 이웃"으로 보인다. */
 	private Map<MemberId, MemberProfile> activeProfiles(Collection<UUID> memberIds) {
 		if (memberIds.isEmpty()) {
 			return Map.of();
 		}
 		Map<MemberId, MemberProfile> result = new LinkedHashMap<>();
+		if (memberIds.contains(CommunityMemberWithdrawalCleaner.ANONYMOUS_AUTHOR)) {
+			result.put(ANONYMOUS_PROFILE.memberId(), ANONYMOUS_PROFILE);
+		}
 		memberApi.findProfiles(memberIds.stream().map(MemberId::new).toList()).forEach((id, profile) -> {
 			if (!profile.withdrawn()) {
 				result.put(id, profile);

@@ -20,4 +20,8 @@ public interface LoginAccountRepository extends JpaRepository<LoginAccount, UUID
 	@Query("delete from LoginAccount a where a.memberId = :memberId")
 	int deleteByMemberId(UUID memberId);
 
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("delete from LoginAccount a where a.provider = :provider and a.providerUserId = :providerUserId")
+	int deleteByProviderAndProviderUserId(AuthProvider provider, String providerUserId);
+
 }

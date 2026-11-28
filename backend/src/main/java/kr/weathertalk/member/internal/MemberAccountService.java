@@ -172,6 +172,42 @@ public class MemberAccountService {
 		return myProfile(memberId);
 	}
 
+	/** 제공자 쪽에서 끊긴 로그인 계정을 처리한 결과. */
+	public enum ProviderUnlinkOutcome {
+		/** 모르는 계정·이미 처리한 알림 */
+		NONE,
+		/** 다른 로그인 수단이 남아 연결만 지움 */
+		ACCOUNT_REMOVED,
+		/** 유일한 로그인 수단이라 탈퇴 */
+		WITHDRAWN
+	}
+
+	/**
+	 * 제공자 쪽에서 이미 끊긴 로그인 계정 처리(카카오 연결 해제 웹훅). 다른 로그인 수단이 남으면 연결만 지우고, 유일한 수단이면 탈퇴와 같이 처리한다.
+	 * 제공자가 이미 끊었으므로 어느 쪽이든 제공자 연결 해제 작업은 남기지 않는다. 모르는 계정·중복 알림이면 아무것도 하지 않는다.
+	 */
+	@Transactional
+	public ProviderUnlinkOutcome handleProviderUnlinked(AuthProvider provider, String providerUserId) {
+		UUID memberId = accounts.findByProviderAndProviderUserId(provider, providerUserId)
+			.map(LoginAccount::memberId)
+			.orElse(null);
+		if (memberId == null) {
+			return ProviderUnlinkOutcome.NONE;
+		}
+		// 회원 잠금 뒤 다시 읽는다 — 같은 알림이 동시에 와도 한 번만 처리
+		Member member = members.findByIdForUpdate(memberId).orElse(null);
+		List<LoginAccount> mine = accounts.findByMemberId(memberId);
+		if (mine.stream().noneMatch(a -> a.provider() == provider && a.providerUserId().equals(providerUserId))) {
+			return ProviderUnlinkOutcome.NONE;
+		}
+		if (mine.size() == 1 && member != null && member.active()) {
+			withdrawLocally(member, false);
+			return ProviderUnlinkOutcome.WITHDRAWN;
+		}
+		accounts.deleteByProviderAndProviderUserId(provider, providerUserId);
+		return ProviderUnlinkOutcome.ACCOUNT_REMOVED;
+	}
+
 	/**
 	 * 탈퇴 로컬 확정 (FR-MEM-09 규칙 1). 한 트랜잭션에서 상태 탈퇴·개인정보 삭제 → 모든 세션 폐기 → 로그인 계정마다 제공자 연결 해제 작업 기록 →
 	 * 로그인 계정 연결 제거 → {@link MemberWithdrawn} 발행(이벤트 발행 저장소에 같은 트랜잭션으로 영속). 외부 호출은 하지 않는다 —
@@ -182,15 +218,24 @@ public class MemberAccountService {
 		Member member = members.findByIdForUpdate(memberId)
 			.filter(Member::active)
 			.orElseThrow(() -> new DomainException(ErrorCode.AUTHENTICATION_FAILED, "이미 탈퇴한 회원입니다."));
+		withdrawLocally(member, true);
+	}
+
+	/** @param scheduleProviderUnlink 제공자가 이미 끊었으면(연결 해제 웹훅) false — 해제 작업을 남기지 않는다 */
+	private void withdrawLocally(Member member, boolean scheduleProviderUnlink) {
+		UUID memberId = member.id();
 		Instant now = clock.instant();
 		member.withdraw(now);
 		members.saveAndFlush(member);
 		sessions.revokeAllOf(memberId, now);
-		for (LoginAccount account : accounts.findByMemberId(memberId)) {
-			unlinks.schedule(account, ExternalUnlinkJob.Reason.WITHDRAWAL);
+		if (scheduleProviderUnlink) {
+			for (LoginAccount account : accounts.findByMemberId(memberId)) {
+				unlinks.schedule(account, ExternalUnlinkJob.Reason.WITHDRAWAL);
+			}
 		}
 		accounts.deleteByMemberId(memberId);
-		events.publishEvent(new MemberWithdrawn(UUID.randomUUID(), member.memberId(), now));
+		// 제공자 쪽에서 끊겨 탈퇴하면(웹훅) 커뮤니티 글은 익명으로 남긴다 — 사용자 결정 2026-11-28
+		events.publishEvent(new MemberWithdrawn(UUID.randomUUID(), member.memberId(), now, !scheduleProviderUnlink));
 	}
 
 	private void lockActive(UUID memberId) {

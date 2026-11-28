@@ -45,6 +45,14 @@ class LikeRepository {
 		return jdbc.sql("DELETE FROM community_like WHERE member_id = :m").param("m", memberId).update();
 	}
 
+	/** 탈퇴 익명화: 개수는 남기고 회원과의 연결만 끊는다. 회원마다 새 ID라 (글, 회원) 기본키가 겹치지 않는다. */
+	void anonymizeMember(UUID memberId) {
+		jdbc.sql("UPDATE community_like SET member_id = :anon WHERE member_id = :m")
+			.param("m", memberId)
+			.param("anon", UUID.randomUUID())
+			.update();
+	}
+
 	int count(UUID postId) {
 		return jdbc.sql("SELECT count(*) FROM community_like WHERE post_id = :p").param("p", postId).query(Integer.class).single();
 	}
