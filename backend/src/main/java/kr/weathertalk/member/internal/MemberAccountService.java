@@ -173,6 +173,18 @@ public class MemberAccountService {
 	}
 
 	/**
+	 * 제공자 쪽에서 이미 끊긴 로그인 계정의 연결을 우리 쪽에서도 지운다(카카오 연결 해제 웹훅). 제공자가 이미 끊었으므로 연결 해제 작업은 남기지 않는다.
+	 * 마지막 로그인 계정이어도 탈퇴시키지 않는다 — 회원 데이터는 남기고, 살아 있는 세션으로 다른 계정을 연결하거나 탈퇴할 수 있다.
+	 * 모르는 계정·중복 알림이면 아무것도 하지 않는다.
+	 *
+	 * @return 지운 연결 수(0 또는 1)
+	 */
+	@Transactional
+	public int forgetUnlinkedAccount(AuthProvider provider, String providerUserId) {
+		return accounts.deleteByProviderAndProviderUserId(provider, providerUserId);
+	}
+
+	/**
 	 * 탈퇴 로컬 확정 (FR-MEM-09 규칙 1). 한 트랜잭션에서 상태 탈퇴·개인정보 삭제 → 모든 세션 폐기 → 로그인 계정마다 제공자 연결 해제 작업 기록 →
 	 * 로그인 계정 연결 제거 → {@link MemberWithdrawn} 발행(이벤트 발행 저장소에 같은 트랜잭션으로 영속). 외부 호출은 하지 않는다 —
 	 * 제공자 연결 해제는 커밋 후 {@link ExternalUnlinkService}가 비동기로 한다(규칙 2·3, legacy 01-#3).
