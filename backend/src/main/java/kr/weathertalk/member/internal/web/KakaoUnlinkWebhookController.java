@@ -21,7 +21,7 @@ import kr.weathertalk.member.internal.domain.AuthProvider;
 /**
  * 카카오 연결 해제 웹훅: 사용자가 카카오 쪽(연결된 서비스 관리·카카오계정 탈퇴 등)에서 앱 연결을 끊으면 카카오가 GET 또는 POST(form)로
  * {@code app_id}·{@code user_id}·{@code referrer_type}을 보낸다. 인증 토큰 없이 열려 있으므로 {@code Authorization: KakaoAK <어드민 키>}와
- * 앱 ID로 진위를 확인한다. 카카오는 3초 안에 200을 요구하고, 모르는 사용자·중복 알림에도 200을 돌려준다.
+ * 앱 ID로 진위를 확인한다. 처리는 {@link MemberAccountService#handleProviderUnlinked}(유일한 로그인 수단이면 탈퇴). 카카오는 3초 안에 200을 요구하고, 모르는 사용자·중복 알림에도 200을 돌려준다.
  * (https://developers.kakao.com/docs/latest/ko/kakaologin/callback)
  */
 @RestController
@@ -51,8 +51,9 @@ class KakaoUnlinkWebhookController {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
 		}
 		if (userId != null && !userId.isBlank()) {
-			int removed = accountService.forgetUnlinkedAccount(AuthProvider.KAKAO, userId.strip());
-			log.info("카카오 연결 해제 웹훅: referrerType={}, 지운 로그인 계정={}", referrerType, removed);
+			MemberAccountService.ProviderUnlinkOutcome outcome = accountService
+				.handleProviderUnlinked(AuthProvider.KAKAO, userId.strip());
+			log.info("카카오 연결 해제 웹훅: referrerType={}, 결과={}", referrerType, outcome);
 		}
 		return ResponseEntity.ok().build();
 	}

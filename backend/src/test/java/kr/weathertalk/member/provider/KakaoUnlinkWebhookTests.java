@@ -3,11 +3,14 @@ package kr.weathertalk.member.provider;
 import static com.github.tomakehurst.wiremock.client.WireMock.anyRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +29,11 @@ import kr.weathertalk.AuthTestClient;
 import kr.weathertalk.IntegrationTest;
 import kr.weathertalk.member.MemberApi;
 import kr.weathertalk.member.MemberStatus;
+import kr.weathertalk.neighborhood.NeighborhoodTestData;
 
 /**
- * 카카오 연결 해제 웹훅: 어드민 키·앱 ID로 진위를 확인하고, 우리 쪽 카카오 로그인 연결만 지운다(카카오 unlink 재호출·해제 작업 없음).
- * 마지막 로그인 계정이어도 탈퇴시키지 않는다. 모르는 사용자·중복 알림은 200.
+ * 카카오 연결 해제 웹훅: 어드민 키·앱 ID로 진위를 확인하고, 우리 쪽 카카오 로그인 연결을 정리한다(카카오 unlink 재호출·해제 작업 없음).
+ * 다른 로그인 수단이 남으면 연결만, 유일한 수단이면 탈퇴(체감 기록은 익명 보관). 모르는 사용자·중복 알림은 200.
  */
 @IntegrationTest
 class KakaoUnlinkWebhookTests {
@@ -120,9 +124,12 @@ class KakaoUnlinkWebhookTests {
 		server.verify(0, anyRequestedFor(urlPathEqualTo(ProviderStubs.KAKAO_UNLINK)));
 	}
 
-	/** 판단: 마지막 로그인 계정이어도 탈퇴시키지 않고 연결만 지운다(회원 데이터 보존). */
+	/**
+	 * 카카오가 유일한 로그인 수단이면 탈퇴와 같이 처리한다: 상태 탈퇴·세션 폐기·연결 제거. 카카오 unlink 재호출·해제 작업은 없다.
+	 * 체감 기록·피드백은 회원 ID만 비워 익명으로 남는다(회원탈퇴함 구독, FR-FEL-09).
+	 */
 	@Test
-	void lastLoginAccountIsRemovedButMemberStaysActive() throws Exception {
+	void onlyLoginAccountWithdrawsMemberButKeepsFeelingsAnonymously() throws Exception {
 		long kakaoId = newKakaoId();
 		String token = "only-" + kakaoId;
 		stubs.kakaoToken(token, kakaoId, ProviderTestKeys.KAKAO_APP_ID, null);
@@ -138,12 +145,48 @@ class KakaoUnlinkWebhookTests {
 			.getResponse()
 			.getContentAsString();
 		AuthTestClient.Session me = AuthTestClient.session(json, null);
+		UUID direct = insertFeeling(me, "DIRECT");
+		UUID feedback = insertFeeling(me, "FEEDBACK");
+		server.resetRequests();
 
 		webhookPost(VALID_AUTH, ProviderTestKeys.KAKAO_APP_ID, Long.toString(kakaoId)).andExpect(status().isOk());
 
+		assertThat(memberApi.findProfile(me.memberId()).orElseThrow().status()).isEqualTo(MemberStatus.WITHDRAWN);
 		assertThat(kakaoAccounts(kakaoId)).isZero();
 		assertThat(unlinkJobs(kakaoId)).isZero();
-		assertThat(memberApi.findProfile(me.memberId()).orElseThrow().status()).isEqualTo(MemberStatus.ACTIVE);
+		mvc.perform(get("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, me.bearer()))
+			.andExpect(status().isUnauthorized());
+		await().atMost(Duration.ofSeconds(10))
+			.untilAsserted(() -> assertThat(jdbc
+				.sql("SELECT count(*) FROM feeling_record WHERE id IN (:ids) AND member_id IS NULL")
+				.param("ids", List.of(direct, feedback))
+				.query(Integer.class)
+				.single()).isEqualTo(2));
+		server.verify(0, anyRequestedFor(urlPathEqualTo(ProviderStubs.KAKAO_UNLINK)));
+
+		// 같은 알림이 다시 와도 200, 그대로
+		webhookPost(VALID_AUTH, ProviderTestKeys.KAKAO_APP_ID, Long.toString(kakaoId)).andExpect(status().isOk());
+		assertThat(memberApi.findProfile(me.memberId()).orElseThrow().status()).isEqualTo(MemberStatus.WITHDRAWN);
+	}
+
+	private UUID insertFeeling(AuthTestClient.Session member, String source) {
+		UUID id = UUID.randomUUID();
+		boolean feedback = source.equals("FEEDBACK");
+		jdbc.sql("""
+				INSERT INTO feeling_record (id, member_id, neighborhood_code, created_at, recorded_at, temperature_level,
+				    temperature_sensitivity, source, feedback_answer, feedback_shown_level, feedback_shown_source,
+				    snapshot_status)
+				VALUES (:id, :member, :nbr, now(), now(), 2, 'NORMAL', :source, :answer, :shown, :shownSource, 'MISSING')
+				""")
+			.param("id", id)
+			.param("member", member.memberId().value())
+			.param("nbr", NeighborhoodTestData.N1.value())
+			.param("source", source)
+			.param("answer", feedback ? "RIGHT" : null, java.sql.Types.VARCHAR)
+			.param("shown", feedback ? 2 : null, java.sql.Types.SMALLINT)
+			.param("shownSource", feedback ? "REFERENCE_TABLE" : null, java.sql.Types.VARCHAR)
+			.update();
+		return id;
 	}
 
 	@Test
