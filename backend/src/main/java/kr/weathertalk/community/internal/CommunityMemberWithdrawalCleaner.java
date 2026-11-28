@@ -41,9 +41,20 @@ class CommunityMemberWithdrawalCleaner {
 		this.clock = clock;
 	}
 
+	/** 익명으로 남긴 글·댓글의 작성자. 실제 회원 ID와 겹치지 않는다. 조회에서는 "탈퇴한 이웃"으로 보인다. */
+	static final UUID ANONYMOUS_AUTHOR = new UUID(0, 0);
+
 	@ApplicationModuleListener
 	void on(MemberWithdrawn event) {
 		UUID memberId = event.memberId().value();
+		if (event.keepCommunityContent()) {
+			// 카카오 연결 해제 웹훅 탈퇴: 지우지 않고 회원과의 연결만 끊는다. 다시 전달되면 바꿀 행이 없다(멱등).
+			posts.anonymizeAuthor(memberId, ANONYMOUS_AUTHOR);
+			comments.anonymizeAuthor(memberId, ANONYMOUS_AUTHOR);
+			likes.anonymizeMember(memberId);
+			images.disposeUnattachedByUploader(memberId, clock.instant().truncatedTo(ChronoUnit.MICROS));
+			return;
+		}
 		posts.findByAuthor(memberId).forEach(postService::deleteCascade);
 		// 답글을 먼저 지워야, 그 회원의 댓글에 남은 답글이 그 회원 것뿐일 때 자리 없이 지워진다
 		comments.findReplyIdsByAuthor(memberId)

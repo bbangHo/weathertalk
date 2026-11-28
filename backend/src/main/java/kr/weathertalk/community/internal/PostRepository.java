@@ -119,6 +119,18 @@ class PostRepository {
 			.list();
 	}
 
+	/** 탈퇴 익명화: 작성자를 익명 작성자로 바꾸고, 붙은 이미지의 올린 사람도 바꾼다(이미지는 그대로 둔다). */
+	void anonymizeAuthor(UUID authorId, UUID anonymous) {
+		jdbc.sql("UPDATE community_post_image SET uploader_id = :anon WHERE uploader_id = :a AND status = 'ATTACHED'")
+			.param("a", authorId)
+			.param("anon", anonymous)
+			.update();
+		jdbc.sql("UPDATE community_post SET author_id = :anon WHERE author_id = :a")
+			.param("a", authorId)
+			.param("anon", anonymous)
+			.update();
+	}
+
 	Map<UUID, Integer> likeCounts(Collection<UUID> postIds) {
 		return counts("SELECT post_id, count(*) AS n FROM community_like WHERE post_id IN (:ids) GROUP BY post_id",
 				postIds);

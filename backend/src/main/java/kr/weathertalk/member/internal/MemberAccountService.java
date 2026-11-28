@@ -234,7 +234,8 @@ public class MemberAccountService {
 			}
 		}
 		accounts.deleteByMemberId(memberId);
-		events.publishEvent(new MemberWithdrawn(UUID.randomUUID(), member.memberId(), now));
+		// 제공자 쪽에서 끊겨 탈퇴하면(웹훅) 커뮤니티 글은 익명으로 남긴다 — 사용자 결정 2026-11-28
+		events.publishEvent(new MemberWithdrawn(UUID.randomUUID(), member.memberId(), now, !scheduleProviderUnlink));
 	}
 
 	private void lockActive(UUID memberId) {

@@ -117,6 +117,14 @@ class CommentRepository {
 			.list();
 	}
 
+	/** 탈퇴 익명화: 작성자를 익명 작성자로 바꾼다. */
+	void anonymizeAuthor(UUID authorId, UUID anonymous) {
+		jdbc.sql("UPDATE community_comment SET author_id = :anon WHERE author_id = :a")
+			.param("a", authorId)
+			.param("anon", anonymous)
+			.update();
+	}
+
 	/** 탈퇴 정리 대상: 그 회원의 답글(답글 먼저 지워야 상위 댓글 자리 판정이 맞다). */
 	List<UUID> findReplyIdsByAuthor(UUID authorId) {
 		return jdbc.sql("SELECT id FROM community_comment WHERE author_id = :a AND parent_id IS NOT NULL")
